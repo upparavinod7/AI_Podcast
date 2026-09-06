@@ -267,13 +267,15 @@ export default function useChunkUploader(sessionId) {
       return;
     }
 
-    refreshStats();
+    void Promise.resolve().then(refreshStats);
 
     // Important:
     // When the page is refreshed, pending chunks
     // are still inside IndexedDB.
     // We automatically try to upload them again.
-    uploadPendingChunks(false);
+    void Promise.resolve().then(
+      () => uploadPendingChunks(false)
+    );
   }, [
     sessionId,
     refreshStats,

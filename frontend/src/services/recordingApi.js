@@ -13,7 +13,8 @@ async function handleResponse(response) {
     data = await response.json();
   } catch (error) {
     throw new Error(
-      `Invalid server response (${response.status})`
+      `Invalid server response (${response.status})`,
+      { cause: error }
     );
   }
 
@@ -120,6 +121,46 @@ export async function getRecordingSessionStatus(
   );
 
   return handleResponse(response);
+}
+
+export async function finalizeRecordingSession(sessionId) {
+  if (!sessionId) {
+    throw new Error("sessionId is required");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/recording/sessions/${sessionId}/finalize`,
+    { method: "POST" }
+  );
+
+  return handleResponse(response);
+}
+
+export async function mixPodcastSession(sessionId, events) {
+  if (!sessionId) {
+    throw new Error("sessionId is required");
+  }
+
+  if (!Array.isArray(events)) {
+    throw new Error("timeline events are required");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/recording/sessions/${sessionId}/mix`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timeline: { events } }),
+    }
+  );
+
+  return handleResponse(response);
+}
+
+export function getFinalRecordingUrl(sessionId) {
+  return sessionId
+    ? `${API_BASE_URL}/recording/sessions/${sessionId}/final`
+    : "";
 }
 
 // ============================================================

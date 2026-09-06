@@ -1,4 +1,4 @@
-import React, {
+import {
   useEffect,
   useRef,
   useState,
@@ -10,6 +10,9 @@ import {
   createRecordingSession,
   getRecordingSessionStatus,
   generateCoHostTimeline,
+  finalizeRecordingSession,
+  mixPodcastSession,
+  getFinalRecordingUrl,
 } from "./services/recordingApi";
 
 import {
@@ -48,9 +51,6 @@ function App() {
         ) || ""
     );
 
-  const [stream, setStream] =
-    useState(null);
-
   const [isRecording, setIsRecording] =
     useState(false);
 
@@ -71,6 +71,18 @@ function App() {
 
   const [status, setStatus] =
     useState(null);
+
+  const [hostRecording, setHostRecording] =
+    useState(null);
+
+  const [isFinalizing, setIsFinalizing] =
+    useState(false);
+
+  const [finalPodcast, setFinalPodcast] =
+    useState(null);
+
+  const [isMixing, setIsMixing] =
+    useState(false);
 
   // ==========================================================
   // AI CO-HOST STATE
@@ -186,7 +198,6 @@ function App() {
 
   useEffect(() => {
     if (!sessionId) {
-      setTimelineEvents([]);
       return;
     }
 
@@ -205,12 +216,18 @@ function App() {
       );
 
     if (savedTimeline) {
-      setTimelineEvents(
-        savedTimeline.events || []
-      );
+      void Promise.resolve().then(() => {
+        setTimelineEvents(
+          savedTimeline.events || []
+        );
+      });
     } else {
-      setTimelineEvents([]);
+      void Promise.resolve().then(() => {
+        setTimelineEvents([]);
+      });
     }
+  // Status restoration is intentionally tied to session changes only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // ==========================================================
@@ -342,10 +359,6 @@ function App() {
 
       streamRef.current =
         mediaStream;
-
-      setStream(
-        mediaStream
-      );
 
       setMicReady(true);
 
@@ -592,7 +605,6 @@ function App() {
       streamRef.current = null;
     }
 
-    setStream(null);
     setMicReady(false);
 
     const finalBlob =
@@ -639,6 +651,62 @@ function App() {
 
     recordingClockRef.current =
       null;
+  }
+
+  async function handleFinalizeRecording() {
+    if (!sessionId || isRecording) {
+      return;
+    }
+
+    try {
+      setError("");
+      setIsFinalizing(true);
+      await retryFailedChunks();
+      await waitForUploads();
+
+      const latestStatus = await getRecordingSessionStatus(sessionId);
+      setStatus(latestStatus);
+
+      if (latestStatus.missingChunks?.length > 0) {
+        throw new Error(`Cannot finalize: missing chunks ${latestStatus.missingChunks.join(", ")}.`);
+      }
+
+      if (failedCount > 0 || pendingCount > 0) {
+        throw new Error("Wait for all recording chunks to upload before finalizing.");
+      }
+
+      const result = await finalizeRecordingSession(sessionId);
+      setHostRecording({
+        ...result,
+        audioUrl: getFinalRecordingUrl(sessionId),
+      });
+    } catch (error) {
+      console.error("Host recording finalization failed:", error);
+      setError(error.message);
+    } finally {
+      setIsFinalizing(false);
+    }
+  }
+
+  async function handleMixPodcast() {
+    if (!sessionId || !hostRecording) {
+      return;
+    }
+
+    try {
+      setError("");
+      setIsMixing(true);
+      const result = await mixPodcastSession(
+        sessionId,
+        getTimelineEvents(sessionId)
+      );
+      setFinalPodcast(result);
+    } catch (error) {
+      console.error("Podcast mixing failed:", error);
+      setError(error.message);
+    } finally {
+      setIsMixing(false);
+    }
   }
 
   // ==========================================================
@@ -1014,6 +1082,8 @@ function App() {
 
     setSessionId("");
     setStatus(null);
+    setHostRecording(null);
+    setFinalPodcast(null);
 
     setAudioUrl("");
     setRecordedBlob(null);
@@ -1305,6 +1375,24 @@ function App() {
           )}
         </div>
 
+        {sessionId && !isRecording && (
+          <div style={{ padding: "15px", borderRadius: "10px", background: "#f8f8f8", marginBottom: "20px" }}>
+            <h3>Finalize Host Recording</h3>
+            <button
+              onClick={handleFinalizeRecording}
+              disabled={isFinalizing || isUploading || failedCount > 0 || pendingCount > 0}
+            >
+              {isFinalizing ? "Finalizing Host Recording..." : "Finalize Host Recording"}
+            </button>
+            {hostRecording && (
+              <div style={{ marginTop: "15px" }}>
+                <p><strong>Host recording ready.</strong> {Number(hostRecording.durationSeconds || 0).toFixed(2)} seconds</p>
+                <audio controls src={hostRecording.audioUrl} style={{ width: "100%" }} />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ================================================== */}
         {/* AI CO-HOST */}
         {/* ================================================== */}
@@ -1477,6 +1565,15 @@ function App() {
                         cue.status
                       }
                     </small>
+
+                    {cue.audioUrl && (
+                      <audio
+                        controls
+                        preload="metadata"
+                        src={cue.audioUrl}
+                        style={{ display: "block", width: "100%", marginTop: "8px" }}
+                      />
+                    )}
                   </div>
                 )
               )}
@@ -1564,6 +1661,26 @@ function App() {
                 recording are not added
                 to the session timeline.
               </p>
+            )}
+          </div>
+        )}
+
+        {hostRecording && (
+          <div style={{ marginTop: "24px", padding: "20px", borderRadius: "12px", background: "#eef8f1" }}>
+            <h2>Final Podcast</h2>
+            <p>Mix the finalized host track with completed AI cues at their recorded timestamps.</p>
+            <button onClick={handleMixPodcast} disabled={isMixing} style={{ marginTop: "12px" }}>
+              {isMixing ? "Creating Final Podcast..." : "Create Final Podcast"}
+            </button>
+            {finalPodcast && (
+              <div style={{ marginTop: "16px" }}>
+                <p><strong>Final podcast ready.</strong> {Number(finalPodcast.wav?.durationSeconds || 0).toFixed(2)} seconds</p>
+                <audio controls src={finalPodcast.mp3Url} style={{ width: "100%" }} />
+                <p style={{ marginTop: "12px" }}>
+                  <a href={finalPodcast.wavUrl} download>Download WAV master</a>{" · "}
+                  <a href={finalPodcast.mp3Url} download>Download MP3</a>
+                </p>
+              </div>
             )}
           </div>
         )}

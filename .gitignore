@@ -109,7 +109,7 @@ desktop.ini
 # FRONTEND LOCAL ENV
 # ============================================================
 
-ffrontend/.env
+frontend/.env
 frontend/.env.*
 !frontend/.env.example
 

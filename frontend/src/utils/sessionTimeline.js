@@ -107,7 +107,8 @@ export function saveSessionTimeline(
     );
 
     throw new Error(
-      "Could not save session timeline"
+      "Could not save session timeline",
+      { cause: error }
     );
   }
 }
