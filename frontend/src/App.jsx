@@ -4,6 +4,7 @@ import {
   useState,
 } from "react";
 
+import "./App.css"
 import useChunkUploader from "./hooks/useChunkUploader";
 
 import {
@@ -427,40 +428,49 @@ function App() {
       // DATA AVAILABLE
       // --------------------------------------------------------
 
-      recorder.ondataavailable =
-        async (event) => {
-          if (
-            !event.data ||
-            event.data.size === 0
-          ) {
-            return;
-          }
+      recorder.ondataavailable = async (event) => {
+  if (
+    !event.data ||
+    event.data.size === 0
+  ) {
+    return;
+  }
 
-          const currentChunkIndex =
-            chunkIndexRef.current;
+  const currentChunkIndex =
+    chunkIndexRef.current;
 
-          chunkIndexRef.current += 1;
+  chunkIndexRef.current += 1;
 
-          chunksRef.current.push(
-            event.data
-          );
+  chunksRef.current.push(
+    event.data
+  );
 
-          try {
-            await queueChunk(
-              currentChunkIndex,
-              event.data
-            );
-          } catch (error) {
-            console.error(
-              "Failed to queue recording chunk:",
-              error
-            );
+  console.log(
+    `Recording chunk ${currentChunkIndex} received:`,
+    event.data.size,
+    "bytes"
+  );
 
-            setError(
-              `Chunk ${currentChunkIndex} could not be saved locally.`
-            );
-          }
-        };
+  try {
+    await queueChunk(
+      currentChunkIndex,
+      event.data
+    );
+
+    console.log(
+      `Recording chunk ${currentChunkIndex} queued/uploaded.`
+    );
+  } catch (error) {
+    console.error(
+      "Failed to queue recording chunk:",
+      error
+    );
+
+    setError(
+      `Chunk ${currentChunkIndex} could not be saved locally.`
+    );
+  }
+};
 
       recorder.onerror =
         (event) => {
@@ -474,31 +484,91 @@ function App() {
           );
         };
 
-      recorder.onstop =
-        async () => {
-          try {
-            await waitForUploads();
+      recorder.onstop = async () => {
+  try {
+    /*
+     * The final dataavailable event is fired before
+     * MediaRecorder's stop event.
+     *
+     * waitForUploads() makes sure all chunks that were
+     * saved to IndexedDB are uploaded before continuing.
+     */
+    await waitForUploads();
 
-            await loadBackendStatus(
-              currentSessionId
-            );
+    /*
+     * Build the local recording only after the final
+     * MediaRecorder data has been collected.
+     */
+    const finalBlob = new Blob(
+      chunksRef.current,
+      {
+        type:
+          recorder.mimeType ||
+          "audio/webm",
+      }
+    );
 
-            stopRecordingTimeline(
-              currentSessionId
-            );
+    if (audioUrl) {
+      URL.revokeObjectURL(
+        audioUrl
+      );
+    }
 
-            setTimelineEvents(
-              getTimelineEvents(
-                currentSessionId
-              )
-            );
-          } catch (error) {
-            console.error(
-              "Final upload wait failed:",
-              error
-            );
-          }
-        };
+    const newAudioUrl =
+      URL.createObjectURL(
+        finalBlob
+      );
+
+    setRecordedBlob(
+      finalBlob
+    );
+
+    setAudioUrl(
+      newAudioUrl
+    );
+
+    /*
+     * Refresh backend status after every chunk
+     * has been uploaded.
+     */
+    await loadBackendStatus(
+      currentSessionId
+    );
+
+    /*
+     * Stop timeline recording only after
+     * recording/upload is complete.
+     */
+    stopRecordingTimeline(
+      currentSessionId
+    );
+
+    setTimelineEvents(
+      getTimelineEvents(
+        currentSessionId
+      )
+    );
+
+    console.log(
+      "Recording stopped successfully."
+    );
+
+    console.log(
+      "Total local chunks:",
+      chunksRef.current.length
+    );
+  } catch (error) {
+    console.error(
+      "Final upload wait failed:",
+      error
+    );
+
+    setError(
+      error.message ||
+        "Failed to finish recording upload."
+    );
+  }
+};
 
       // 5-second recording chunks
       recorder.start(5000);
@@ -575,119 +645,140 @@ function App() {
   // ==========================================================
 
   async function stopRecording() {
-    const recorder =
-      recorderRef.current;
+  const recorder =
+    recorderRef.current;
 
-    if (!recorder) {
-      return;
-    }
+  if (!recorder) {
+    return;
+  }
 
-    if (
-      recorder.state ===
-        "recording" ||
-      recorder.state ===
-        "paused"
-    ) {
-      recorder.stop();
-    }
+  /*
+   * Calling stop() triggers the final dataavailable
+   * event followed by onstop.
+   *
+   * Do NOT create the final Blob here because the
+   * final dataavailable event may not have completed yet.
+   */
+  if (
+    recorder.state === "recording" ||
+    recorder.state === "paused"
+  ) {
+    recorder.stop();
+  }
 
-    setIsRecording(false);
-    setIsPaused(false);
+  setIsRecording(false);
+  setIsPaused(false);
 
-    if (streamRef.current) {
-      streamRef.current
-        .getTracks()
-        .forEach(
-          (track) =>
-            track.stop()
-        );
+  /*
+   * Stop microphone tracks.
+   */
+  if (streamRef.current) {
+    streamRef.current
+      .getTracks()
+      .forEach((track) => {
+        track.stop();
+      });
 
-      streamRef.current = null;
-    }
+    streamRef.current = null;
+  }
 
-    setMicReady(false);
+  setMicReady(false);
 
-    const finalBlob =
-      new Blob(
-        chunksRef.current,
-        {
-          type:
-            recorder.mimeType ||
-            "audio/webm",
-        }
-      );
+  /*
+   * onstop handles:
+   * - waiting for uploads
+   * - creating final Blob
+   * - updating backend status
+   * - stopping timeline
+   */
 
-    if (audioUrl) {
-      URL.revokeObjectURL(
-        audioUrl
-      );
-    }
+  recordingClockRef.current = null;
+}
 
-    const newAudioUrl =
-      URL.createObjectURL(
-        finalBlob
-      );
+ async function handleFinalizeRecording() {
+  if (!sessionId || isRecording) {
+    return;
+  }
 
-    setRecordedBlob(
-      finalBlob
-    );
+  try {
+    setError("");
+    setIsFinalizing(true);
 
-    setAudioUrl(
-      newAudioUrl
-    );
+    /*
+     * Retry previously failed chunks first.
+     */
+    await retryFailedChunks();
 
-    try {
-      await waitForUploads();
+    /*
+     * Wait until the complete IndexedDB upload
+     * queue has been processed.
+     */
+    await waitForUploads();
 
-      await loadBackendStatus(
+    /*
+     * Get the latest backend status.
+     */
+    const latestStatus =
+      await getRecordingSessionStatus(
         sessionId
       );
-    } catch (error) {
-      console.error(
-        "Upload wait failed:",
-        error
+
+    setStatus(latestStatus);
+
+    /*
+     * Backend is the final source of truth.
+     */
+    if (
+      latestStatus.missingChunks &&
+      latestStatus.missingChunks.length > 0
+    ) {
+      throw new Error(
+        `Cannot finalize: missing chunks ${latestStatus.missingChunks.join(", ")}.`
       );
     }
 
-    recordingClockRef.current =
-      null;
-  }
-
-  async function handleFinalizeRecording() {
-    if (!sessionId || isRecording) {
-      return;
+    /*
+     * Finalize only after backend confirms
+     * that the expected sequence is complete.
+     */
+    if (
+      latestStatus.sequenceComplete === false
+    ) {
+      throw new Error(
+        "Recording sequence is not complete yet. Please wait for all chunks to upload."
+      );
     }
 
-    try {
-      setError("");
-      setIsFinalizing(true);
-      await retryFailedChunks();
-      await waitForUploads();
+    const result =
+      await finalizeRecordingSession(
+        sessionId
+      );
 
-      const latestStatus = await getRecordingSessionStatus(sessionId);
-      setStatus(latestStatus);
+    setHostRecording({
+      ...result,
+      audioUrl:
+        getFinalRecordingUrl(
+          sessionId
+        ),
+    });
 
-      if (latestStatus.missingChunks?.length > 0) {
-        throw new Error(`Cannot finalize: missing chunks ${latestStatus.missingChunks.join(", ")}.`);
-      }
+    console.log(
+      "Host recording finalized successfully."
+    );
+  } catch (error) {
+    console.error(
+      "Host recording finalization failed:",
+      error
+    );
 
-      if (failedCount > 0 || pendingCount > 0) {
-        throw new Error("Wait for all recording chunks to upload before finalizing.");
-      }
-
-      const result = await finalizeRecordingSession(sessionId);
-      setHostRecording({
-        ...result,
-        audioUrl: getFinalRecordingUrl(sessionId),
-      });
-    } catch (error) {
-      console.error("Host recording finalization failed:", error);
-      setError(error.message);
-    } finally {
-      setIsFinalizing(false);
-    }
+    setError(
+      error.message ||
+        "Failed to finalize host recording."
+    );
+  } finally {
+    setIsFinalizing(false);
   }
-
+}
   async function handleMixPodcast() {
     if (!sessionId || !hostRecording) {
       return;
@@ -1139,804 +1230,871 @@ function App() {
   // RENDER
   // ==========================================================
 
-  return (
-    <div
-      style={{
-        minHeight:
-          "100vh",
-        padding:
-          "40px",
-        fontFamily:
-          "Arial, sans-serif",
-        background:
-          "#f5f5f5",
-      }}
-    >
-      <div
-        style={{
-          maxWidth:
-            "900px",
-          margin:
-            "0 auto",
-          background:
-            "#ffffff",
-          padding:
-            "30px",
-          borderRadius:
-            "16px",
-          boxShadow:
-            "0 8px 30px rgba(0,0,0,0.08)",
-        }}
-      >
-        <h1>
-          AI Podcast Studio
-        </h1>
+  return (  
+    <div className="app-shell">
+      <div className="app-container">
 
-        <p>
-          Browser recording +
-          scripted AI co-host.
-        </p>
+        {/* ================= HEADER ================= */}
 
-        <hr />
+        <header className="app-header">
+          <div>
+            <div className="brand-row">
+              <div className="brand-icon">🎙</div>
 
-        {/* ================================================== */}
-        {/* HOST RECORDING */}
-        {/* ================================================== */}
+              <div>
+                <h1>AI Podcast Studio</h1>
+                <p>
+                  Create, record and produce podcasts with your AI co-host.
+                </p>
+              </div>
+            </div>
+          </div>
 
-        <h2>
-          Host Recording
-        </h2>
+          <div className={`status-pill ${isRecording ? "recording" : ""}`}>
+            <span className="status-dot"></span>
+            {isRecording ? "Recording" : "Studio Ready"}
+          </div>
+        </header>
 
-        <p>
-          <strong>
-            Session ID:
-          </strong>{" "}
-          {sessionId ||
-            "Not created"}
-        </p>
+        {/* ================= ERROR ================= */}
 
-        <div
-          style={{
-            display:
-              "flex",
-            gap:
-              "10px",
-            flexWrap:
-              "wrap",
-            marginBottom:
-              "20px",
-          }}
-        >
-          {!sessionId && (
-            <button
-              onClick={
-                createNewSession
-              }
-            >
-              Create Session
-            </button>
-          )}
+        {(error || aiError) && (
+          <div className="error-banner">
+            <span>⚠</span>
 
-          {sessionId &&
-            !isRecording && (
+            <div>
+              {error && (
+                <div>
+                  <strong>Recording Error:</strong> {error}
+                </div>
+              )}
+
+              {aiError && (
+                <div>
+                  <strong>AI Error:</strong> {aiError}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ================= SESSION ================= */}
+
+        <section className="session-bar">
+          <div>
+            <span className="section-label">CURRENT SESSION</span>
+
+            <div className="session-id">
+              {sessionId || "No session created"}
+            </div>
+          </div>
+
+          <div className="session-actions">
+            {!sessionId && (
               <button
-                onClick={
-                  startRecording
-                }
+                className="btn btn-primary"
+                onClick={createNewSession}
               >
-                Start Recording
+                + Create Session
               </button>
             )}
 
-          {isRecording &&
-            !isPaused && (
+            {sessionId && !isRecording && (
               <button
-                onClick={
-                  pauseRecording
-                }
-              >
-                Pause
-              </button>
-            )}
-
-          {isRecording &&
-            isPaused && (
-              <button
-                onClick={
-                  resumeRecording
-                }
-              >
-                Resume
-              </button>
-            )}
-
-          {isRecording && (
-            <button
-              onClick={
-                stopRecording
-              }
-            >
-              Stop
-            </button>
-          )}
-
-          {!isRecording &&
-            sessionId && (
-              <button
-                onClick={
-                  startNewSession
-                }
+                className="btn btn-secondary"
+                onClick={startNewSession}
               >
                 New Session
               </button>
             )}
-        </div>
-
-        <div
-          style={{
-            padding:
-              "15px",
-            borderRadius:
-              "10px",
-            background:
-              "#f0f0f0",
-            marginBottom:
-              "20px",
-          }}
-        >
-          <p>
-            Microphone:{" "}
-            <strong>
-              {micReady
-                ? "Ready / Active"
-                : "Not active"}
-            </strong>
-          </p>
-
-          <p>
-            Recorder:{" "}
-            <strong>
-              {isRecording
-                ? isPaused
-                  ? "Paused"
-                  : "Recording"
-                : "Stopped"}
-            </strong>
-          </p>
-        </div>
-
-        {/* ================================================== */}
-        {/* UPLOAD STATUS */}
-        {/* ================================================== */}
-
-        <div
-          style={{
-            padding:
-              "15px",
-            borderRadius:
-              "10px",
-            background:
-              "#f8f8f8",
-            marginBottom:
-              "20px",
-          }}
-        >
-          <h3>
-            Upload Status
-          </h3>
-
-          <p>
-            Backend uploaded:{" "}
-            <strong>
-              {totalBackendChunks}
-            </strong>
-
-            {expectedBackendChunks !==
-            null
-              ? ` / ${expectedBackendChunks}`
-              : ""}
-          </p>
-
-          <p>
-            Pending:{" "}
-            <strong>
-              {pendingCount}
-            </strong>
-          </p>
-
-          <p>
-            Failed:{" "}
-            <strong>
-              {failedCount}
-            </strong>
-          </p>
-
-          <p>
-            Upload worker:{" "}
-            <strong>
-              {isUploading
-                ? "Uploading..."
-                : "Idle"}
-            </strong>
-          </p>
-
-          {failedCount >
-            0 && (
-            <button
-              onClick={
-                handleRetry
-              }
-              disabled={
-                isUploading
-              }
-            >
-              Retry Failed Chunks
-            </button>
-          )}
-        </div>
-
-        {sessionId && !isRecording && (
-          <div style={{ padding: "15px", borderRadius: "10px", background: "#f8f8f8", marginBottom: "20px" }}>
-            <h3>Finalize Host Recording</h3>
-            <button
-              onClick={handleFinalizeRecording}
-              disabled={isFinalizing || isUploading || failedCount > 0 || pendingCount > 0}
-            >
-              {isFinalizing ? "Finalizing Host Recording..." : "Finalize Host Recording"}
-            </button>
-            {hostRecording && (
-              <div style={{ marginTop: "15px" }}>
-                <p><strong>Host recording ready.</strong> {Number(hostRecording.durationSeconds || 0).toFixed(2)} seconds</p>
-                <audio controls src={hostRecording.audioUrl} style={{ width: "100%" }} />
-              </div>
-            )}
           </div>
-        )}
+        </section>
 
-        {/* ================================================== */}
-        {/* AI CO-HOST */}
-        {/* ================================================== */}
+        {/* ================= MAIN GRID ================= */}
 
-        <hr />
+        <div className="studio-grid">
 
-        <h2>
-          AI Co-host
-        </h2>
+          {/* ================= HOST RECORDING ================= */}
 
-        <label>
-          <strong>
-            Topic
-          </strong>
-        </label>
+          <section className="card recording-card">
 
-        <input
-          value={topic}
-          onChange={(event) =>
-            setTopic(
-              event.target.value
-            )
-          }
-          style={{
-            display:
-              "block",
-            width:
-              "100%",
-            boxSizing:
-              "border-box",
-            padding:
-              "10px",
-            marginTop:
-              "6px",
-            marginBottom:
-              "15px",
-          }}
-        />
+            <div className="card-header">
+              <div>
+                <span className="card-eyebrow">RECORDING</span>
+                <h2>Host Recording</h2>
+              </div>
 
-        <label>
-          <strong>
-            Outline
-          </strong>
-        </label>
+              <div className={`recording-icon ${isRecording ? "active" : ""}`}>
+                {isRecording ? "●" : "🎙"}
+              </div>
+            </div>
 
-        <textarea
-          value={outline}
-          onChange={(event) =>
-            setOutline(
-              event.target.value
-            )
-          }
-          rows={5}
-          style={{
-            display:
-              "block",
-            width:
-              "100%",
-            boxSizing:
-              "border-box",
-            padding:
-              "10px",
-            marginTop:
-              "6px",
-            marginBottom:
-              "15px",
-            resize:
-              "vertical",
-          }}
-        />
+            <div className="recording-display">
 
-        <button
-          onClick={
-            handleGenerateCues
-          }
-          disabled={
-            isGeneratingCues
-          }
-        >
-          {isGeneratingCues
-            ? "Generating AI Cues..."
-            : "Generate AI Cues"}
-        </button>
+              <div className={`recording-state ${isRecording ? "live" : ""}`}>
+                <span className="big-status-dot"></span>
 
-        {cueTimeline && (
-          <div
-            style={{
-              marginTop:
-                "20px",
-              padding:
-                "20px",
-              borderRadius:
-                "12px",
-              background:
-                "#f8f8f8",
-            }}
-          >
-            <h3>
-              AI Cue Timeline
-            </h3>
+                <div>
+                  <strong>
+                    {isRecording
+                      ? isPaused
+                        ? "Recording Paused"
+                        : "Recording Live"
+                      : "Ready to Record"}
+                  </strong>
 
-            <p>
-              Ready cues:{" "}
-              <strong>
-                {
-                  cueTimeline.readyCueCount
-                }
-              </strong>{" "}
-              /{" "}
-              <strong>
-                {
-                  cueTimeline.cueCount
-                }
-              </strong>
-            </p>
+                  <small>
+                    {micReady
+                      ? "Microphone connected"
+                      : "Microphone not active"}
+                  </small>
+                </div>
+              </div>
 
-            <div
-              style={{
-                marginBottom:
-                  "20px",
-              }}
-            >
-              {cueTimeline.cues.map(
-                (cue) => (
-                  <div
-                    key={
-                      cue.cueIndex
-                    }
-                    style={{
-                      padding:
-                        "12px",
-                      marginBottom:
-                        "10px",
-                      border:
-                        "1px solid #ddd",
-                      borderRadius:
-                        "8px",
-                      background:
-                        cue.cueIndex ===
-                        currentCueIndex
-                          ? "#e9f5ff"
-                          : "#ffffff",
-                    }}
-                  >
-                    <strong>
-                      Cue{" "}
-                      {cue.cueIndex +
-                        1}
-                    </strong>
+              <div className="recording-time">
+                {isRecording
+                  ? isPaused
+                    ? "PAUSED"
+                    : "REC"
+                  : "READY"}
+              </div>
+            </div>
 
-                    <p>
-                      {
-                        cue.text
-                      }
-                    </p>
+            {/* RECORDING CONTROLS */}
 
-                    <small>
-                      Duration:{" "}
-                      {
-                        cue.durationSeconds
-                      }{" "}
-                      sec
-                    </small>
+            <div className="button-group">
 
-                    <br />
+              {!sessionId && (
+                <button
+                  className="btn btn-primary btn-large"
+                  onClick={createNewSession}
+                >
+                  Create Session
+                </button>
+              )}
 
-                    <small>
-                      Status:{" "}
-                      {
-                        cue.status
-                      }
-                    </small>
+              {sessionId && !isRecording && (
+                <button
+                  className="btn btn-primary btn-large"
+                  onClick={startRecording}
+                >
+                  ● Start Recording
+                </button>
+              )}
 
-                    {cue.audioUrl && (
-                      <audio
-                        controls
-                        preload="metadata"
-                        src={cue.audioUrl}
-                        style={{ display: "block", width: "100%", marginTop: "8px" }}
-                      />
-                    )}
-                  </div>
-                )
+              {isRecording && !isPaused && (
+                <button
+                  className="btn btn-warning"
+                  onClick={pauseRecording}
+                >
+                  ❚❚ Pause
+                </button>
+              )}
+
+              {isRecording && isPaused && (
+                <button
+                  className="btn btn-primary"
+                  onClick={resumeRecording}
+                >
+                  ▶ Resume
+                </button>
+              )}
+
+              {isRecording && (
+                <button
+                  className="btn btn-danger"
+                  onClick={stopRecording}
+                >
+                  ■ Stop
+                </button>
               )}
             </div>
 
-            {/* ============================================== */}
-            {/* AI SPEAKER INDICATOR */}
-            {/* ============================================== */}
+            {/* MIC STATUS */}
 
-            <div
-              style={{
-                padding:
-                  "15px",
-                borderRadius:
-                  "10px",
-                background:
-                  isAiSpeaking
-                    ? "#fff3cd"
-                    : "#eeeeee",
-                marginBottom:
-                  "15px",
-              }}
-            >
-              <strong>
-                AI Co-host:{" "}
-                {isAiSpeaking
-                  ? "SPEAKING 🔊"
-                  : "READY"}
-              </strong>
+            <div className="info-grid">
+
+              <div className="info-item">
+                <span>Microphone</span>
+
+                <strong className={micReady ? "success-text" : ""}>
+                  {micReady ? "Ready / Active" : "Not Active"}
+                </strong>
+              </div>
+
+              <div className="info-item">
+                <span>Recorder</span>
+
+                <strong>
+                  {isRecording
+                    ? isPaused
+                      ? "Paused"
+                      : "Recording"
+                    : "Stopped"}
+                </strong>
+              </div>
+
             </div>
 
-            {currentCue && (
-              <div
-                style={{
-                  marginBottom:
-                    "15px",
-                }}
-              >
-                <strong>
-                  Current Cue:
-                </strong>{" "}
-                {currentCue
-                  .cueIndex +
-                  1}
+          </section>
 
-                <p>
-                  {
-                    currentCue.text
-                  }
-                </p>
+          {/* ================= UPLOAD STATUS ================= */}
+
+          <section className="card upload-card">
+
+            <div className="card-header">
+              <div>
+                <span className="card-eyebrow">LIVE STATUS</span>
+                <h2>Upload Status</h2>
+              </div>
+
+              <div className="upload-icon">☁</div>
+            </div>
+
+            <div className="upload-progress">
+
+              <div className="progress-top">
+                <span>Backend Upload</span>
+
+                <strong>
+                  {totalBackendChunks}
+                  {expectedBackendChunks !== null
+                    ? ` / ${expectedBackendChunks}`
+                    : ""}
+                </strong>
+              </div>
+
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width:
+                      expectedBackendChunks &&
+                      expectedBackendChunks > 0
+                        ? `${Math.min(
+                            (totalBackendChunks /
+                              expectedBackendChunks) *
+                              100,
+                            100
+                          )}%`
+                        : "0%",
+                  }}
+                />
+              </div>
+
+            </div>
+
+            <div className="stats-grid">
+
+              <div className="stat-box">
+                <span>Pending</span>
+                <strong>{pendingCount}</strong>
+              </div>
+
+              <div className="stat-box">
+                <span>Failed</span>
+                <strong className={failedCount > 0 ? "danger-text" : ""}>
+                  {failedCount}
+                </strong>
+              </div>
+
+              <div className="stat-box">
+                <span>Worker</span>
+                <strong className={isUploading ? "active-text" : ""}>
+                  {isUploading ? "Uploading" : "Idle"}
+                </strong>
+              </div>
+
+            </div>
+
+            {failedCount > 0 && (
+              <button
+                className="btn btn-warning full-width"
+                onClick={handleRetry}
+                disabled={isUploading}
+              >
+                ↻ Retry Failed Chunks
+              </button>
+            )}
+
+          </section>
+
+        </div>
+
+        {/* ================= FINALIZE ================= */}
+
+        {sessionId && !isRecording && (
+          <section className="card finalize-card">
+
+            <div className="card-header">
+              <div>
+                <span className="card-eyebrow">STEP 02</span>
+                <h2>Finalize Host Recording</h2>
+              </div>
+
+              <div className="step-number">02</div>
+            </div>
+
+            <p className="muted-text">
+              Make sure all recording chunks are uploaded before creating
+              the final host track.
+            </p>
+
+            <button
+              className="btn btn-primary"
+              onClick={handleFinalizeRecording}
+              disabled={
+                isFinalizing ||
+                isUploading ||
+                failedCount > 0 ||
+                pendingCount > 0
+              }
+            >
+              {isFinalizing
+                ? "Finalizing Host Recording..."
+                : "Finalize Host Recording"}
+            </button>
+
+            {hostRecording && (
+              <div className="audio-result">
+
+                <div className="result-header">
+                  <div>
+                    <span className="success-badge">✓ READY</span>
+
+                    <h3>Host recording ready</h3>
+                  </div>
+
+                  <strong>
+                    {Number(
+                      hostRecording.durationSeconds || 0
+                    ).toFixed(2)}{" "}
+                    sec
+                  </strong>
+                </div>
+
+                <audio
+                  controls
+                  src={hostRecording.audioUrl}
+                />
+
               </div>
             )}
 
+          </section>
+        )}
+
+        {/* ================= AI CO-HOST ================= */}
+
+        <section className="card ai-card">
+
+          <div className="ai-header">
+
+            <div>
+              <span className="card-eyebrow">AI CO-HOST</span>
+
+              <h2>
+                Plan your AI conversation
+              </h2>
+
+              <p>
+                Give your AI co-host a topic and outline.
+                It will generate questions you can play during recording.
+              </p>
+            </div>
+
+            <div className="ai-orb">
+              ✦
+            </div>
+
+          </div>
+
+          <div className="form-grid">
+
+            <div className="form-field">
+              <label>Topic</label>
+
+              <input
+                value={topic}
+                onChange={(event) =>
+                  setTopic(event.target.value)
+                }
+                placeholder="e.g. Artificial Intelligence in Software Development"
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Outline</label>
+
+              <textarea
+                value={outline}
+                onChange={(event) =>
+                  setOutline(event.target.value)
+                }
+                rows={5}
+                placeholder="Discuss the main points, questions and ideas for the episode..."
+              />
+            </div>
+
+          </div>
+
+          <button
+            className="btn btn-gradient btn-large"
+            onClick={handleGenerateCues}
+            disabled={isGeneratingCues}
+          >
+            {isGeneratingCues
+              ? "✦ Generating AI Cues..."
+              : "✦ Generate AI Cues"}
+          </button>
+
+        </section>
+
+        {/* ================= AI CUE TIMELINE ================= */}
+
+        {cueTimeline && (
+          <section className="card cue-card">
+
+            <div className="card-header">
+
+              <div>
+                <span className="card-eyebrow">AI CUE TIMELINE</span>
+
+                <h2>AI Co-host Questions</h2>
+
+                <p className="muted-text">
+                  Play the generated cues while recording your episode.
+                </p>
+              </div>
+
+              <div className="cue-count">
+                <strong>
+                  {cueTimeline.readyCueCount}
+                </strong>
+
+                <span>
+                  / {cueTimeline.cueCount} ready
+                </span>
+              </div>
+
+            </div>
+
+            {/* CUES */}
+
+            <div className="cue-list">
+
+              {cueTimeline.cues.map((cue) => {
+
+                const isCurrent =
+                  cue.cueIndex === currentCueIndex;
+
+                return (
+                  <div
+                    key={cue.cueIndex}
+                    className={`cue-item ${
+                      isCurrent ? "current" : ""
+                    }`}
+                  >
+
+                    <div className="cue-number">
+                      {String(cue.cueIndex + 1).padStart(2, "0")}
+                    </div>
+
+                    <div className="cue-content">
+
+                      <div className="cue-top">
+
+                        <span className="cue-label">
+                          AI QUESTION
+                        </span>
+
+                        <span
+                          className={`cue-status ${
+                            cue.status === "ready"
+                              ? "ready"
+                              : ""
+                          }`}
+                        >
+                          {cue.status}
+                        </span>
+
+                      </div>
+
+                      <p>
+                        {cue.text}
+                      </p>
+
+                      <div className="cue-meta">
+                        <span>
+                          ◷ {cue.durationSeconds} sec
+                        </span>
+                      </div>
+
+                      {cue.audioUrl && (
+                        <audio
+                          controls
+                          preload="metadata"
+                          src={cue.audioUrl}
+                        />
+                      )}
+
+                    </div>
+
+                  </div>
+                );
+              })}
+
+            </div>
+
+            {/* AI SPEAKER */}
+
+            <div
+              className={`ai-speaking ${
+                isAiSpeaking ? "speaking" : ""
+              }`}
+            >
+
+              <div className="speaker-icon">
+                {isAiSpeaking ? "🔊" : "✦"}
+              </div>
+
+              <div>
+                <strong>
+                  AI Co-host{" "}
+                  {isAiSpeaking ? "is speaking" : "is ready"}
+                </strong>
+
+                <span>
+                  {isAiSpeaking
+                    ? "Playing the selected question..."
+                    : "Ready for the next cue"}
+                </span>
+              </div>
+
+              <div className="speaker-wave">
+                <i></i>
+                <i></i>
+                <i></i>
+                <i></i>
+                <i></i>
+              </div>
+
+            </div>
+
+            {/* CURRENT CUE */}
+
+            {currentCue && (
+              <div className="current-cue">
+
+                <span className="card-eyebrow">
+                  CURRENT CUE
+                </span>
+
+                <h3>
+                  Cue {currentCue.cueIndex + 1}
+                </h3>
+
+                <p>
+                  {currentCue.text}
+                </p>
+
+              </div>
+            )}
+
+            {/* NEXT BUTTON */}
+
             <button
-              onClick={
-                handleNextCue
-              }
+              className="btn btn-gradient btn-large full-width"
+              onClick={handleNextCue}
               disabled={
                 isAiSpeaking ||
                 currentCueIndex >=
-                  cueTimeline.cues.length -
-                    1
+                  cueTimeline.cues.length - 1
               }
             >
               {currentCueIndex >=
-              cueTimeline.cues.length -
-                1
-                ? "All Cues Played"
-                : "Next AI Cue 🔊"}
+              cueTimeline.cues.length - 1
+                ? "✓ All Cues Played"
+                : "▶ Play Next AI Cue"}
             </button>
 
             {!isRecording && (
-              <p
-                style={{
-                  marginTop:
-                    "10px",
-                  fontSize:
-                    "14px",
-                  color:
-                    "#666",
-                }}
-              >
-                AI cue preview mode:
-                cues played while not
-                recording are not added
-                to the session timeline.
+              <p className="preview-note">
+                Preview mode — cues played while you are not recording
+                will not be added to the session timeline.
               </p>
             )}
-          </div>
+
+          </section>
         )}
+
+        {/* ================= FINAL PODCAST ================= */}
 
         {hostRecording && (
-          <div style={{ marginTop: "24px", padding: "20px", borderRadius: "12px", background: "#eef8f1" }}>
-            <h2>Final Podcast</h2>
-            <p>Mix the finalized host track with completed AI cues at their recorded timestamps.</p>
-            <button onClick={handleMixPodcast} disabled={isMixing} style={{ marginTop: "12px" }}>
-              {isMixing ? "Creating Final Podcast..." : "Create Final Podcast"}
-            </button>
-            {finalPodcast && (
-              <div style={{ marginTop: "16px" }}>
-                <p><strong>Final podcast ready.</strong> {Number(finalPodcast.wav?.durationSeconds || 0).toFixed(2)} seconds</p>
-                <audio controls src={finalPodcast.mp3Url} style={{ width: "100%" }} />
-                <p style={{ marginTop: "12px" }}>
-                  <a href={finalPodcast.wavUrl} download>Download WAV master</a>{" · "}
-                  <a href={finalPodcast.mp3Url} download>Download MP3</a>
+          <section className="card final-card">
+
+            <div className="final-hero">
+
+              <div className="final-icon">
+                ✨
+              </div>
+
+              <div>
+                <span className="card-eyebrow">
+                  FINAL PRODUCTION
+                </span>
+
+                <h2>
+                  Create Final Podcast
+                </h2>
+
+                <p>
+                  Mix your host recording with the AI co-host
+                  cues at their recorded timestamps.
                 </p>
               </div>
-            )}
-          </div>
-        )}
 
-        {aiError && (
-          <div
-            style={{
-              marginTop:
-                "15px",
-              padding:
-                "12px",
-              borderRadius:
-                "8px",
-              background:
-                "#ffe5e5",
-            }}
-          >
-            <strong>
-              AI Error:
-            </strong>{" "}
-            {aiError}
-          </div>
-        )}
-
-        {/* ================================================== */}
-        {/* SESSION TIMELINE */}
-        {/* ================================================== */}
-
-        {timelineEvents.length >
-          0 && (
-          <div
-            style={{
-              marginTop:
-                "20px",
-              padding:
-                "20px",
-              borderRadius:
-                "12px",
-              background:
-                "#f8f8f8",
-            }}
-          >
-            <h3>
-              Recording Event Timeline
-            </h3>
-
-            <p>
-              AI cues recorded in
-              this session:{" "}
-              <strong>
-                {
-                  timelineEvents.length
-                }
-              </strong>
-            </p>
-
-            {timelineEvents.map(
-              (event) => (
-                <div
-                  key={
-                    event.eventId
-                  }
-                  style={{
-                    padding:
-                      "12px",
-                    marginBottom:
-                      "10px",
-                    border:
-                      "1px solid #ddd",
-                    borderRadius:
-                      "8px",
-                    background:
-                      "#ffffff",
-                  }}
-                >
-                  <strong>
-                    AI Cue{" "}
-                    {event.cueIndex +
-                      1}
-                  </strong>
-
-                  <p>
-                    {
-                      event.text
-                    }
-                  </p>
-
-                  <small>
-                    Status:{" "}
-                    {
-                      event.status
-                    }
-                  </small>
-
-                  <br />
-
-                  <small>
-                    Start:{" "}
-                    {event.startOffsetMs !==
-                    null
-                      ? `${(
-                          event.startOffsetMs /
-                          1000
-                        ).toFixed(
-                          3
-                        )} sec`
-                      : "—"}
-                  </small>
-
-                  <br />
-
-                  <small>
-                    End:{" "}
-                    {event.endOffsetMs !==
-                    null
-                      ? `${(
-                          event.endOffsetMs /
-                          1000
-                        ).toFixed(
-                          3
-                        )} sec`
-                      : "—"}
-                  </small>
-
-                  <br />
-
-                  <small>
-                    Duration:{" "}
-                    {event.actualDurationMs !==
-                    null
-                      ? `${(
-                          event.actualDurationMs /
-                          1000
-                        ).toFixed(
-                          3
-                        )} sec`
-                      : "—"}
-                  </small>
-                </div>
-              )
-            )}
-          </div>
-        )}
-
-        {/* ================================================== */}
-        {/* BACKEND SESSION */}
-        {/* ================================================== */}
-
-        {status && (
-          <div
-            style={{
-              marginTop:
-                "20px",
-              padding:
-                "15px",
-              borderRadius:
-                "10px",
-              background:
-                "#f8f8f8",
-            }}
-          >
-            <h3>
-              Backend Session
-            </h3>
-
-            <p>
-              Sequence complete:{" "}
-              <strong>
-                {status.sequenceComplete
-                  ? "Yes"
-                  : "No"}
-              </strong>
-            </p>
-
-            <p>
-              Received:{" "}
-              <strong>
-                {
-                  status.receivedChunkCount
-                }
-              </strong>
-            </p>
-
-            <p>
-              Expected:{" "}
-              <strong>
-                {
-                  status.expectedChunkCount
-                }
-              </strong>
-            </p>
-          </div>
-        )}
-
-        {/* ================================================== */}
-        {/* ERRORS */}
-        {/* ================================================== */}
-
-        {(error ||
-          lastError) && (
-          <div
-            style={{
-              marginTop:
-                "20px",
-              padding:
-                "15px",
-              borderRadius:
-                "10px",
-              background:
-                "#ffe5e5",
-            }}
-          >
-            <strong>
-              Recording Error:
-            </strong>{" "}
-            {error ||
-              lastError}
-          </div>
-        )}
-
-        {/* ================================================== */}
-        {/* LOCAL PREVIEW */}
-        {/* ================================================== */}
-
-        {audioUrl && (
-          <div
-            style={{
-              marginTop:
-                "20px",
-            }}
-          >
-            <h3>
-              Local Host Recording
-            </h3>
-
-            <audio
-              controls
-              src={audioUrl}
-              style={{
-                width:
-                  "100%",
-              }}
-            />
-
-            <br />
-            <br />
+            </div>
 
             <button
-              onClick={
-                downloadRecording
-              }
+              className="btn btn-gradient btn-large"
+              onClick={handleMixPodcast}
+              disabled={isMixing}
             >
-              Download Recording
+              {isMixing
+                ? "Creating Final Podcast..."
+                : "✦ Create Final Podcast"}
             </button>
-          </div>
+
+            {finalPodcast && (
+              <div className="final-result">
+
+                <div className="final-ready">
+
+                  <div>
+                    <span className="success-badge">
+                      ✓ COMPLETE
+                    </span>
+
+                    <h3>
+                      Your podcast is ready
+                    </h3>
+                  </div>
+
+                  <strong>
+                    {Number(
+                      finalPodcast.wav?.durationSeconds || 0
+                    ).toFixed(2)}{" "}
+                    sec
+                  </strong>
+
+                </div>
+
+                <audio
+                  controls
+                  src={finalPodcast.mp3Url}
+                />
+
+                <div className="download-row">
+
+                  <a
+                    href={finalPodcast.wavUrl}
+                    download
+                    className="download-btn"
+                  >
+                    ↓ Download WAV
+                  </a>
+
+                  <a
+                    href={finalPodcast.mp3Url}
+                    download
+                    className="download-btn"
+                  >
+                    ↓ Download MP3
+                  </a>
+
+                </div>
+
+              </div>
+            )}
+
+          </section>
         )}
+
+        {/* ================= RECORDING TIMELINE ================= */}
+
+        {timelineEvents.length > 0 && (
+          <section className="card timeline-card">
+
+            <div className="card-header">
+
+              <div>
+                <span className="card-eyebrow">
+                  RECORDING TIMELINE
+                </span>
+
+                <h2>
+                  AI Cue Events
+                </h2>
+              </div>
+
+              <div className="timeline-count">
+                {timelineEvents.length} events
+              </div>
+
+            </div>
+
+            <div className="event-list">
+
+              {timelineEvents.map((event) => (
+                <div
+                  key={event.eventId}
+                  className="event-item"
+                >
+
+                  <div className="event-marker">
+                    <span></span>
+                  </div>
+
+                  <div className="event-content">
+
+                    <div className="event-header">
+
+                      <strong>
+                        AI Cue {event.cueIndex + 1}
+                      </strong>
+
+                      <span>
+                        {event.status}
+                      </span>
+
+                    </div>
+
+                    <p>
+                      {event.text}
+                    </p>
+
+                    <div className="event-times">
+
+                      <span>
+                        Start:{" "}
+                        {event.startOffsetMs !== null
+                          ? `${(
+                              event.startOffsetMs / 1000
+                            ).toFixed(3)} sec`
+                          : "—"}
+                      </span>
+
+                      <span>
+                        End:{" "}
+                        {event.endOffsetMs !== null
+                          ? `${(
+                              event.endOffsetMs / 1000
+                            ).toFixed(3)} sec`
+                          : "—"}
+                      </span>
+
+                      <span>
+                        Duration:{" "}
+                        {event.actualDurationMs !== null
+                          ? `${(
+                              event.actualDurationMs / 1000
+                            ).toFixed(3)} sec`
+                          : "—"}
+                      </span>
+
+                    </div>
+
+                  </div>
+
+                </div>
+              ))}
+
+            </div>
+
+          </section>
+        )}
+
+        {/* ================= BACKEND SESSION ================= */}
+
+        {status && (
+          <section className="card backend-card">
+
+            <div className="card-header">
+
+              <div>
+                <span className="card-eyebrow">
+                  BACKEND
+                </span>
+
+                <h2>
+                  Session Status
+                </h2>
+              </div>
+
+              <div
+                className={`backend-status ${
+                  status.sequenceComplete
+                    ? "complete"
+                    : ""
+                }`}
+              >
+                {status.sequenceComplete
+                  ? "✓ Complete"
+                  : "In Progress"}
+              </div>
+
+            </div>
+
+            <div className="backend-grid">
+
+              <div>
+                <span>Sequence</span>
+
+                <strong>
+                  {status.sequenceComplete
+                    ? "Complete"
+                    : "Incomplete"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Received Chunks</span>
+
+                <strong>
+                  {status.receivedChunkCount ?? 0}
+                </strong>
+              </div>
+
+              <div>
+                <span>Expected Chunks</span>
+
+                <strong>
+                  {status.expectedChunkCount ?? "—"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Missing Chunks</span>
+
+                <strong>
+                  {status.missingChunks?.length ?? 0}
+                </strong>
+              </div>
+
+            </div>
+
+          </section>
+        )}
+
+        {/* ================= FOOTER ================= */}
+
+        <footer className="app-footer">
+          <span>AI Podcast Studio</span>
+          <span>•</span>
+          <span>Record → Generate → Mix → Publish</span>
+        </footer>
+
       </div>
     </div>
   );

@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   saveChunk,
   getSessionChunks,
-  getPendingChunks,
   updateChunkStatus,
   deleteChunk,
 } from "../utils/indexedDB";
@@ -21,13 +25,15 @@ function delay(ms) {
 export default function useChunkUploader(sessionId) {
   const [pendingCount, setPendingCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
-  const [uploadedCount, setUploadedCount] =
-    useState(0);
-  const [isUploading, setIsUploading] =
-    useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
   const [lastError, setLastError] = useState(null);
 
   const processingRef = useRef(false);
+
+  // ==========================================================
+  // REFRESH QUEUE STATS
+  // ==========================================================
 
   const refreshStats = useCallback(async () => {
     if (!sessionId) {
@@ -56,6 +62,10 @@ export default function useChunkUploader(sessionId) {
       );
     }
   }, [sessionId]);
+
+  // ==========================================================
+  // UPLOAD SINGLE CHUNK
+  // ==========================================================
 
   const uploadSingleChunk = useCallback(
     async (chunk) => {
@@ -134,62 +144,76 @@ export default function useChunkUploader(sessionId) {
     [sessionId, refreshStats]
   );
 
-  const uploadPendingChunks = useCallback(
-    async (includeFailed = false) => {
-      if (!sessionId) {
-        return;
-      }
+  // ==========================================================
+  // UPLOAD PENDING CHUNKS
+  //
+  // NOTE:
+  // This is intentionally NOT wrapped in useCallback.
+  // React Compiler was reporting:
+  // preserve-manual-memoization
+  // ==========================================================
 
-      if (processingRef.current) {
-        return;
-      }
+  async function uploadPendingChunks(
+    includeFailed = false
+  ) {
+    if (!sessionId) {
+      return;
+    }
 
-      processingRef.current = true;
-      setIsUploading(true);
-      setLastError(null);
+    if (processingRef.current) {
+      return;
+    }
 
-      try {
-        let chunks;
+    processingRef.current = true;
+    setIsUploading(true);
+    setLastError(null);
 
-        if (includeFailed) {
-          chunks = await getSessionChunks(
-            sessionId
-          );
+    try {
+      let chunks = await getSessionChunks(
+        sessionId
+      );
 
-          chunks = chunks.filter(
-            (chunk) =>
-              chunk.status === "pending" ||
-              chunk.status === "failed"
-          );
-        } else {
-          chunks = await getPendingChunks(
-            sessionId
-          );
-        }
-
-        chunks.sort(
-          (a, b) => a.chunkIndex - b.chunkIndex
+      if (includeFailed) {
+        chunks = chunks.filter(
+          (chunk) =>
+            chunk.status === "pending" ||
+            chunk.status === "failed"
         );
-
-        for (const chunk of chunks) {
-          await uploadSingleChunk(chunk);
-        }
-      } catch (error) {
-        console.error(
-          "Pending chunk upload failed:",
-          error
+      } else {
+        chunks = chunks.filter(
+          (chunk) => chunk.status === "pending"
         );
-
-        setLastError(error.message);
-      } finally {
-        processingRef.current = false;
-        setIsUploading(false);
-
-        await refreshStats();
       }
-    },
-    [sessionId, uploadSingleChunk, refreshStats]
-  );
+
+      chunks.sort(
+        (a, b) =>
+          a.chunkIndex - b.chunkIndex
+      );
+
+      for (const chunk of chunks) {
+        await uploadSingleChunk(chunk);
+      }
+    } catch (error) {
+      console.error(
+        "Pending chunk upload failed:",
+        error
+      );
+
+      setLastError(
+        error.message ||
+          "Failed to upload pending chunks."
+      );
+    } finally {
+      processingRef.current = false;
+      setIsUploading(false);
+
+      await refreshStats();
+    }
+  }
+
+  // ==========================================================
+  // QUEUE NEW CHUNK
+  // ==========================================================
 
   const queueChunk = useCallback(
     async (chunkIndex, blob) => {
@@ -206,7 +230,9 @@ export default function useChunkUploader(sessionId) {
       }
 
       if (!(blob instanceof Blob)) {
-        throw new Error("Chunk must be a Blob");
+        throw new Error(
+          "Chunk must be a Blob"
+        );
       }
 
       await saveChunk({
@@ -219,16 +245,23 @@ export default function useChunkUploader(sessionId) {
 
       await uploadPendingChunks(false);
     },
-    [
-      sessionId,
-      refreshStats,
-      uploadPendingChunks,
-    ]
+    [sessionId, refreshStats, uploadSingleChunk]
   );
 
-  const retryFailedChunks = useCallback(async () => {
-    await uploadPendingChunks(true);
-  }, [uploadPendingChunks]);
+  // ==========================================================
+  // RETRY FAILED CHUNKS
+  // ==========================================================
+
+  const retryFailedChunks = useCallback(
+    async () => {
+      await uploadPendingChunks(true);
+    },
+    [sessionId, refreshStats, uploadSingleChunk]
+  );
+
+  // ==========================================================
+  // WAIT FOR UPLOADS
+  // ==========================================================
 
   const waitForUploads = useCallback(
     async () => {
@@ -240,6 +273,10 @@ export default function useChunkUploader(sessionId) {
     },
     [refreshStats]
   );
+
+  // ==========================================================
+  // CLEAR QUEUE
+  // ==========================================================
 
   const clearQueue = useCallback(async () => {
     if (!sessionId) {
@@ -262,25 +299,27 @@ export default function useChunkUploader(sessionId) {
     setLastError(null);
   }, [sessionId]);
 
+  // ==========================================================
+  // RECOVER PENDING CHUNKS AFTER PAGE REFRESH
+  // ==========================================================
+
   useEffect(() => {
     if (!sessionId) {
       return;
     }
 
-    void Promise.resolve().then(refreshStats);
+    const timer = setTimeout(() => {
+      void uploadPendingChunks(false);
+    }, 0);
 
-    // Important:
-    // When the page is refreshed, pending chunks
-    // are still inside IndexedDB.
-    // We automatically try to upload them again.
-    void Promise.resolve().then(
-      () => uploadPendingChunks(false)
-    );
-  }, [
-    sessionId,
-    refreshStats,
-    uploadPendingChunks,
-  ]);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [sessionId]);
+
+  // ==========================================================
+  // RETURN API
+  // ==========================================================
 
   return {
     queueChunk,
