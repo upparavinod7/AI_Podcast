@@ -2,9 +2,6 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "http://localhost:5000/api";
 
-// ============================================================
-// COMMON RESPONSE HANDLER
-// ============================================================
 
 async function handleResponse(response) {
   let data;
@@ -32,9 +29,6 @@ async function handleResponse(response) {
   return data;
 }
 
-// ============================================================
-// RECORDING
-// ============================================================
 
 export async function createRecordingSession() {
   const response = await fetch(
@@ -163,9 +157,6 @@ export function getFinalRecordingUrl(sessionId) {
     : "";
 }
 
-// ============================================================
-// AI CO-HOST
-// ============================================================
 
 export async function generateCoHostTimeline(
   topic,
@@ -209,9 +200,6 @@ export async function generateCoHostTimeline(
   return handleResponse(response);
 }
 
-// ============================================================
-// HELPER
-// ============================================================
 
 export function getApiBaseUrl() {
   return API_BASE_URL;

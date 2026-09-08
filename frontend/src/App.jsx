@@ -28,21 +28,15 @@ import {
   clearSessionTimeline,
 } from "./utils/sessionTimeline";
 
-// ============================================================
-// CONSTANTS
-// ============================================================
+
 
 const ACTIVE_SESSION_KEY =
   "ai_podcast_active_session_id";
 
-// ============================================================
-// APP
-// ============================================================
+
 
 function App() {
-  // ==========================================================
-  // RECORDING STATE
-  // ==========================================================
+
 
   const [sessionId, setSessionId] =
     useState(
@@ -85,9 +79,7 @@ function App() {
   const [isMixing, setIsMixing] =
     useState(false);
 
-  // ==========================================================
-  // AI CO-HOST STATE
-  // ==========================================================
+
 
   const [topic, setTopic] =
     useState(
@@ -114,16 +106,10 @@ function App() {
   const [aiError, setAiError] =
     useState("");
 
-  // ==========================================================
-  // SESSION EVENT TIMELINE
-  // ==========================================================
 
   const [timelineEvents, setTimelineEvents] =
     useState([]);
 
-  // ==========================================================
-  // REFS
-  // ==========================================================
 
   const chunksRef =
     useRef([]);
@@ -140,15 +126,9 @@ function App() {
   const aiAudioRef =
     useRef(null);
 
-  // Monotonic browser clock.
-  // This gives us accurate elapsed time
-  // for the current recording page session.
   const recordingClockRef =
     useRef(null);
 
-  // ==========================================================
-  // CHUNK UPLOADER
-  // ==========================================================
 
   const {
     queueChunk,
@@ -164,9 +144,6 @@ function App() {
     sessionId
   );
 
-  // ==========================================================
-  // CLEANUP
-  // ==========================================================
 
   useEffect(() => {
     return () => {
@@ -193,9 +170,6 @@ function App() {
     };
   }, [audioUrl]);
 
-  // ==========================================================
-  // RESTORE SESSION
-  // ==========================================================
 
   useEffect(() => {
     if (!sessionId) {
@@ -227,13 +201,8 @@ function App() {
         setTimelineEvents([]);
       });
     }
-  // Status restoration is intentionally tied to session changes only.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // ==========================================================
-  // LOAD BACKEND STATUS
-  // ==========================================================
 
   async function loadBackendStatus(
     id = sessionId
@@ -257,9 +226,6 @@ function App() {
     }
   }
 
-  // ==========================================================
-  // CREATE SESSION
-  // ==========================================================
 
   async function createNewSession() {
     try {
@@ -314,9 +280,6 @@ function App() {
     }
   }
 
-  // ==========================================================
-  // START RECORDING
-  // ==========================================================
 
   async function startRecording() {
     try {
@@ -339,15 +302,6 @@ function App() {
         );
       }
 
-      // Ask the browser to apply its built-in microphone
-      // cleanup where supported.
-      //
-      // echoCancellation  -> reduces echo/feedback
-      // noiseSuppression  -> reduces steady background noise
-      // autoGainControl   -> keeps voice level more consistent
-      //
-      // mono input is sufficient for a spoken podcast and
-      // reduces unnecessary recording data.
       const mediaStream =
         await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -408,9 +362,6 @@ function App() {
       chunksRef.current = [];
       chunkIndexRef.current = 0;
 
-      // --------------------------------------------------------
-      // START THE SESSION CLOCK
-      // --------------------------------------------------------
 
       recordingClockRef.current =
         performance.now();
@@ -424,9 +375,6 @@ function App() {
         timeline.events
       );
 
-      // --------------------------------------------------------
-      // DATA AVAILABLE
-      // --------------------------------------------------------
 
       recorder.ondataavailable = async (event) => {
   if (
@@ -486,19 +434,10 @@ function App() {
 
       recorder.onstop = async () => {
   try {
-    /*
-     * The final dataavailable event is fired before
-     * MediaRecorder's stop event.
-     *
-     * waitForUploads() makes sure all chunks that were
-     * saved to IndexedDB are uploaded before continuing.
-     */
+
     await waitForUploads();
 
-    /*
-     * Build the local recording only after the final
-     * MediaRecorder data has been collected.
-     */
+
     const finalBlob = new Blob(
       chunksRef.current,
       {
@@ -527,18 +466,12 @@ function App() {
       newAudioUrl
     );
 
-    /*
-     * Refresh backend status after every chunk
-     * has been uploaded.
-     */
+
     await loadBackendStatus(
       currentSessionId
     );
 
-    /*
-     * Stop timeline recording only after
-     * recording/upload is complete.
-     */
+
     stopRecordingTimeline(
       currentSessionId
     );
@@ -570,7 +503,6 @@ function App() {
   }
 };
 
-      // 5-second recording chunks
       recorder.start(5000);
 
       setIsRecording(true);
@@ -598,9 +530,6 @@ function App() {
     }
   }
 
-  // ==========================================================
-  // PAUSE
-  // ==========================================================
 
   function pauseRecording() {
     const recorder =
@@ -619,10 +548,7 @@ function App() {
     setIsPaused(true);
   }
 
-  // ==========================================================
   // RESUME
-  // ==========================================================
-
   function resumeRecording() {
     const recorder =
       recorderRef.current;
@@ -640,10 +566,6 @@ function App() {
     setIsPaused(false);
   }
 
-  // ==========================================================
-  // STOP
-  // ==========================================================
-
   async function stopRecording() {
   const recorder =
     recorderRef.current;
@@ -652,13 +574,7 @@ function App() {
     return;
   }
 
-  /*
-   * Calling stop() triggers the final dataavailable
-   * event followed by onstop.
-   *
-   * Do NOT create the final Blob here because the
-   * final dataavailable event may not have completed yet.
-   */
+
   if (
     recorder.state === "recording" ||
     recorder.state === "paused"
@@ -669,9 +585,7 @@ function App() {
   setIsRecording(false);
   setIsPaused(false);
 
-  /*
-   * Stop microphone tracks.
-   */
+
   if (streamRef.current) {
     streamRef.current
       .getTracks()
@@ -684,13 +598,7 @@ function App() {
 
   setMicReady(false);
 
-  /*
-   * onstop handles:
-   * - waiting for uploads
-   * - creating final Blob
-   * - updating backend status
-   * - stopping timeline
-   */
+
 
   recordingClockRef.current = null;
 }
@@ -704,20 +612,13 @@ function App() {
     setError("");
     setIsFinalizing(true);
 
-    /*
-     * Retry previously failed chunks first.
-     */
+
     await retryFailedChunks();
 
-    /*
-     * Wait until the complete IndexedDB upload
-     * queue has been processed.
-     */
+
     await waitForUploads();
 
-    /*
-     * Get the latest backend status.
-     */
+
     const latestStatus =
       await getRecordingSessionStatus(
         sessionId
@@ -725,9 +626,7 @@ function App() {
 
     setStatus(latestStatus);
 
-    /*
-     * Backend is the final source of truth.
-     */
+
     if (
       latestStatus.missingChunks &&
       latestStatus.missingChunks.length > 0
@@ -737,10 +636,7 @@ function App() {
       );
     }
 
-    /*
-     * Finalize only after backend confirms
-     * that the expected sequence is complete.
-     */
+
     if (
       latestStatus.sequenceComplete === false
     ) {
@@ -800,9 +696,6 @@ function App() {
     }
   }
 
-  // ==========================================================
-  // GENERATE AI CUES
-  // ==========================================================
 
   async function handleGenerateCues() {
     try {
@@ -869,9 +762,6 @@ function App() {
     }
   }
 
-  // ==========================================================
-  // NEXT AI CUE
-  // ==========================================================
 
   async function handleNextCue() {
     if (
@@ -944,12 +834,6 @@ function App() {
       aiAudioRef.current =
         audio;
 
-      // --------------------------------------------------------
-      // Create event only if we are in a recording session.
-      //
-      // If recording is stopped, this is treated as
-      // a preview and is NOT added to the mixing timeline.
-      // --------------------------------------------------------
 
       const isRecordingSession =
         isRecording &&
@@ -1095,9 +979,6 @@ function App() {
     }
   }
 
-  // ==========================================================
-  // RETRY FAILED CHUNKS
-  // ==========================================================
 
   async function handleRetry() {
     setError("");
@@ -1120,9 +1001,6 @@ function App() {
     }
   }
 
-  // ==========================================================
-  // DOWNLOAD LOCAL RECORDING
-  // ==========================================================
 
   function downloadRecording() {
     if (
@@ -1152,9 +1030,6 @@ function App() {
     anchor.remove();
   }
 
-  // ==========================================================
-  // NEW SESSION
-  // ==========================================================
 
   function startNewSession() {
     if (isRecording) {
@@ -1205,9 +1080,6 @@ function App() {
       null;
   }
 
-  // ==========================================================
-  // UI VALUES
-  // ==========================================================
 
   const totalBackendChunks =
     status?.receivedChunkCount ??
@@ -1226,15 +1098,12 @@ function App() {
         ]
       : null;
 
-  // ==========================================================
-  // RENDER
-  // ==========================================================
 
-  return (  
+  return (
     <div className="app-shell">
       <div className="app-container">
 
-        {/* ================= HEADER ================= */}
+        {}
 
         <header className="app-header">
           <div>
@@ -1256,7 +1125,7 @@ function App() {
           </div>
         </header>
 
-        {/* ================= ERROR ================= */}
+        {}
 
         {(error || aiError) && (
           <div className="error-banner">
@@ -1278,7 +1147,7 @@ function App() {
           </div>
         )}
 
-        {/* ================= SESSION ================= */}
+        {}
 
         <section className="session-bar">
           <div>
@@ -1310,11 +1179,11 @@ function App() {
           </div>
         </section>
 
-        {/* ================= MAIN GRID ================= */}
+        {}
 
         <div className="studio-grid">
 
-          {/* ================= HOST RECORDING ================= */}
+          {}
 
           <section className="card recording-card">
 
@@ -1360,7 +1229,7 @@ function App() {
               </div>
             </div>
 
-            {/* RECORDING CONTROLS */}
+            {}
 
             <div className="button-group">
 
@@ -1410,7 +1279,7 @@ function App() {
               )}
             </div>
 
-            {/* MIC STATUS */}
+            {}
 
             <div className="info-grid">
 
@@ -1438,7 +1307,7 @@ function App() {
 
           </section>
 
-          {/* ================= UPLOAD STATUS ================= */}
+          {}
 
           <section className="card upload-card">
 
@@ -1521,7 +1390,7 @@ function App() {
 
         </div>
 
-        {/* ================= FINALIZE ================= */}
+        {}
 
         {sessionId && !isRecording && (
           <section className="card finalize-card">
@@ -1584,7 +1453,7 @@ function App() {
           </section>
         )}
 
-        {/* ================= AI CO-HOST ================= */}
+        {}
 
         <section className="card ai-card">
 
@@ -1650,7 +1519,7 @@ function App() {
 
         </section>
 
-        {/* ================= AI CUE TIMELINE ================= */}
+        {}
 
         {cueTimeline && (
           <section className="card cue-card">
@@ -1679,7 +1548,7 @@ function App() {
 
             </div>
 
-            {/* CUES */}
+            {}
 
             <div className="cue-list">
 
@@ -1746,7 +1615,7 @@ function App() {
 
             </div>
 
-            {/* AI SPEAKER */}
+            {}
 
             <div
               className={`ai-speaking ${
@@ -1781,7 +1650,7 @@ function App() {
 
             </div>
 
-            {/* CURRENT CUE */}
+            {}
 
             {currentCue && (
               <div className="current-cue">
@@ -1801,7 +1670,7 @@ function App() {
               </div>
             )}
 
-            {/* NEXT BUTTON */}
+            {}
 
             <button
               className="btn btn-gradient btn-large full-width"
@@ -1828,7 +1697,7 @@ function App() {
           </section>
         )}
 
-        {/* ================= FINAL PODCAST ================= */}
+        {}
 
         {hostRecording && (
           <section className="card final-card">
@@ -1921,7 +1790,7 @@ function App() {
           </section>
         )}
 
-        {/* ================= RECORDING TIMELINE ================= */}
+        {}
 
         {timelineEvents.length > 0 && (
           <section className="card timeline-card">
@@ -2015,7 +1884,7 @@ function App() {
           </section>
         )}
 
-        {/* ================= BACKEND SESSION ================= */}
+        {}
 
         {status && (
           <section className="card backend-card">
@@ -2087,7 +1956,7 @@ function App() {
           </section>
         )}
 
-        {/* ================= FOOTER ================= */}
+        {}
 
         <footer className="app-footer">
           <span>AI Podcast Studio</span>

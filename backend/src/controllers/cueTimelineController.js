@@ -2,10 +2,6 @@ const {
   buildCueTimeline,
 } = require("../services/cueTimelineService");
 
-// ============================================================
-// GENERATE CUE TIMELINE
-// POST /api/cohost/timeline
-// ============================================================
 
 async function generateCueTimeline(
   req,

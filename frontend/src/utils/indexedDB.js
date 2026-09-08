@@ -50,9 +50,6 @@ function openDatabase() {
   });
 }
 
-// ============================================================
-// SAVE CHUNK
-// ============================================================
 
 export async function saveChunk({
   sessionId,
@@ -131,9 +128,6 @@ export async function saveChunk({
   });
 }
 
-// ============================================================
-// GET SINGLE CHUNK
-// ============================================================
 
 export async function getChunk(id) {
   if (!id) {
@@ -170,9 +164,6 @@ export async function getChunk(id) {
   });
 }
 
-// ============================================================
-// GET ALL SESSION CHUNKS
-// ============================================================
 
 export async function getSessionChunks(
   sessionId
@@ -225,9 +216,6 @@ export async function getSessionChunks(
   });
 }
 
-// ============================================================
-// GET PENDING / FAILED CHUNKS
-// ============================================================
 
 export async function getPendingChunks(
   sessionId
@@ -247,9 +235,6 @@ export async function getPendingChunks(
     );
 }
 
-// ============================================================
-// GET FAILED CHUNKS ONLY
-// ============================================================
 
 export async function getFailedChunks(
   sessionId
@@ -268,9 +253,6 @@ export async function getFailedChunks(
     );
 }
 
-// ============================================================
-// UPDATE CHUNK STATUS
-// ============================================================
 
 export async function updateChunkStatus(
   sessionId,
@@ -375,9 +357,6 @@ export async function updateChunkStatus(
   });
 }
 
-// ============================================================
-// MARK CHUNK UPLOADING
-// ============================================================
 
 export async function markChunkUploading(
   sessionId,
@@ -399,9 +378,6 @@ export async function markChunkUploading(
   );
 }
 
-// ============================================================
-// MARK CHUNK UPLOADED
-// ============================================================
 
 export async function markChunkUploaded(
   sessionId,
@@ -416,9 +392,6 @@ export async function markChunkUploaded(
   );
 }
 
-// ============================================================
-// MARK CHUNK FAILED
-// ============================================================
 
 export async function markChunkFailed(
   sessionId,
@@ -433,9 +406,6 @@ export async function markChunkFailed(
   );
 }
 
-// ============================================================
-// DELETE SINGLE CHUNK
-// ============================================================
 
 export async function deleteChunk(
   sessionId,
@@ -481,9 +451,6 @@ export async function deleteChunk(
   });
 }
 
-// ============================================================
-// DELETE SESSION CHUNKS
-// ============================================================
 
 export async function deleteSessionChunks(
   sessionId
@@ -501,9 +468,6 @@ export async function deleteSessionChunks(
   return true;
 }
 
-// ============================================================
-// DELETE UPLOADED CHUNKS
-// ============================================================
 
 export async function deleteUploadedChunks(
   sessionId
@@ -527,9 +491,6 @@ export async function deleteUploadedChunks(
   return true;
 }
 
-// ============================================================
-// GET ALL PENDING CHUNKS
-// ============================================================
 
 export async function getAllPendingChunks() {
   const db = await openDatabase();
@@ -593,9 +554,6 @@ export async function getAllPendingChunks() {
   });
 }
 
-// ============================================================
-// GET ALL CHUNKS
-// ============================================================
 
 export async function getAllChunks() {
   const db = await openDatabase();
@@ -650,9 +608,6 @@ export async function getAllChunks() {
   });
 }
 
-// ============================================================
-// CLEAR EVERYTHING
-// ============================================================
 
 export async function clearAllChunks() {
   const db = await openDatabase();
@@ -688,9 +643,6 @@ export async function clearAllChunks() {
   });
 }
 
-// ============================================================
-// SESSION SUMMARY
-// ============================================================
 
 export async function getSessionChunkSummary(
   sessionId

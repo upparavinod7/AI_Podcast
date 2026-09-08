@@ -28,7 +28,7 @@ body {
     #f7f7ff;
 }
 
-/* ================= APP ================= */
+
 
 .app-shell {
   min-height: 100vh;
@@ -40,7 +40,7 @@ body {
   margin: 0 auto;
 }
 
-/* ================= HEADER ================= */
+
 
 .app-header {
   display: flex;
@@ -128,7 +128,7 @@ body {
   animation: pulse 1.2s infinite;
 }
 
-/* ================= SESSION ================= */
+
 
 .session-bar {
   display: flex;
@@ -167,7 +167,7 @@ body {
   font-size: 13px;
 }
 
-/* ================= GRID ================= */
+
 
 .studio-grid {
   display: grid;
@@ -175,7 +175,7 @@ body {
   gap: 20px;
 }
 
-/* ================= CARD ================= */
+
 
 .card {
   margin-bottom: 20px;
@@ -217,7 +217,7 @@ body {
   line-height: 1.6;
 }
 
-/* ================= RECORDING ================= */
+
 
 .recording-icon,
 .upload-icon {
@@ -305,7 +305,7 @@ body {
   color: #7650df;
 }
 
-/* ================= BUTTONS ================= */
+
 
 .button-group {
   display: flex;
@@ -392,7 +392,7 @@ body {
   width: 100%;
 }
 
-/* ================= INFO ================= */
+
 
 .info-grid {
   display: grid;
@@ -430,7 +430,7 @@ body {
   color: #16a34a;
 }
 
-/* ================= UPLOAD ================= */
+
 
 .upload-progress {
   padding: 15px;
@@ -518,7 +518,7 @@ body {
   color: #dc2626;
 }
 
-/* ================= FINALIZE ================= */
+
 
 .finalize-card {
   background:
@@ -590,7 +590,7 @@ body {
   width: 100%;
 }
 
-/* ================= AI ================= */
+
 
 .ai-card {
   position: relative;
@@ -711,7 +711,7 @@ body {
     0 0 0 4px rgba(139, 92, 246, 0.1);
 }
 
-/* ================= CUES ================= */
+
 
 .cue-card {
   background:
@@ -847,7 +847,7 @@ body {
   font-size: 11px;
 }
 
-/* ================= AI SPEAKING ================= */
+
 
 .ai-speaking {
   display: flex;
@@ -973,7 +973,7 @@ body {
   text-align: center;
 }
 
-/* ================= FINAL PODCAST ================= */
+
 
 .final-card {
   background:
@@ -1042,7 +1042,7 @@ body {
   font-weight: 800;
 }
 
-/* ================= TIMELINE ================= */
+
 
 .timeline-count,
 .backend-status {
@@ -1135,7 +1135,7 @@ body {
   font-size: 10px;
 }
 
-/* ================= BACKEND ================= */
+
 
 .backend-status.complete {
   color: #15803d;
@@ -1173,7 +1173,7 @@ body {
   font-size: 13px;
 }
 
-/* ================= ERROR ================= */
+
 
 .error-banner {
   display: flex;
@@ -1194,7 +1194,7 @@ body {
   line-height: 1.5;
 }
 
-/* ================= FOOTER ================= */
+
 
 .app-footer {
   display: flex;
@@ -1208,7 +1208,7 @@ body {
   font-size: 11px;
 }
 
-/* ================= ANIMATIONS ================= */
+
 
 @keyframes pulse {
   0%,
@@ -1231,7 +1231,7 @@ body {
   }
 }
 
-/* ================= RESPONSIVE ================= */
+
 
 @media (max-width: 850px) {
   .studio-grid {

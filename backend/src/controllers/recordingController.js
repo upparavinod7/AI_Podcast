@@ -6,9 +6,6 @@ const {
   getFinalRecording,
 } = require("../services/recordingService");
 
-// ============================================================
-// CREATE SESSION
-// ============================================================
 
 async function createSession(req, res) {
   try {
@@ -34,9 +31,6 @@ async function createSession(req, res) {
   }
 }
 
-// ============================================================
-// UPLOAD CHUNK
-// ============================================================
 
 async function uploadChunk(req, res) {
   try {
@@ -99,9 +93,6 @@ async function uploadChunk(req, res) {
   }
 }
 
-// ============================================================
-// GET SESSION STATUS
-// ============================================================
 
 async function getSessionStatus(
   req,
@@ -142,9 +133,6 @@ async function getSessionStatus(
   }
 }
 
-// ============================================================
-// FINALIZE RECORDING
-// ============================================================
 
 async function finalizeSession(
   req,
@@ -197,10 +185,6 @@ async function finalizeSession(
   }
 }
 
-// ============================================================
-// STREAM FINAL RECORDING
-// GET /api/recording/sessions/:sessionId/final
-// ============================================================
 
 function getFinalRecordingFile(
   req,

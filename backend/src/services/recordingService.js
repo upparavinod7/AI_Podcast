@@ -32,9 +32,6 @@ function isValidSessionId(sessionId) {
   );
 }
 
-// ============================================================
-// CREATE RECORDING SESSION
-// ============================================================
 
 function createRecordingSession() {
   ensureDirectories();
@@ -56,9 +53,6 @@ function createRecordingSession() {
   };
 }
 
-// ============================================================
-// SESSION DIRECTORY
-// ============================================================
 
 function getSessionDirectory(sessionId) {
   if (!isValidSessionId(sessionId)) {
@@ -71,9 +65,6 @@ function getSessionDirectory(sessionId) {
   );
 }
 
-// ============================================================
-// SAVE RECORDING CHUNK
-// ============================================================
 
 function saveRecordingChunk(
   sessionId,
@@ -135,9 +126,6 @@ function saveRecordingChunk(
   };
 }
 
-// ============================================================
-// GET SESSION CHUNKS
-// ============================================================
 
 function getSessionChunks(sessionId) {
   const sessionDir =
@@ -190,9 +178,6 @@ function getSessionChunks(sessionId) {
   return chunks;
 }
 
-// ============================================================
-// VALIDATE CHUNK SEQUENCE
-// ============================================================
 
 function validateChunkSequence(chunks) {
   if (!chunks || chunks.length === 0) {
@@ -240,9 +225,6 @@ function validateChunkSequence(chunks) {
   };
 }
 
-// ============================================================
-// GET SESSION STATUS
-// ============================================================
 
 function getRecordingSessionStatus(
   sessionId
@@ -275,9 +257,6 @@ function getRecordingSessionStatus(
   };
 }
 
-// ============================================================
-// GET ORDERED CHUNK PATHS
-// ============================================================
 
 function getOrderedChunkPaths(
   sessionId
@@ -307,9 +286,6 @@ function getOrderedChunkPaths(
   );
 }
 
-// ============================================================
-// RUN FFMPEG
-// ============================================================
 
 function runFFmpeg(args) {
   return new Promise(
@@ -351,9 +327,6 @@ function runFFmpeg(args) {
   );
 }
 
-// ============================================================
-// PROBE AUDIO
-// ============================================================
 
 async function probeAudio(
   filePath
@@ -410,9 +383,6 @@ async function probeAudio(
   );
 }
 
-// ============================================================
-// FINALIZE RECORDING
-// ============================================================
 
 async function finalizeRecording(
   sessionId
@@ -602,9 +572,6 @@ async function finalizeRecording(
   }
 }
 
-// ============================================================
-// GET FINAL RECORDING
-// ============================================================
 
 function getFinalRecording(
   sessionId

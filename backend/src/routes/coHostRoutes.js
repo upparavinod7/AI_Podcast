@@ -11,20 +11,12 @@ const {
 const router =
   express.Router();
 
-// ============================================================
-// GENERATE AI CO-HOST
-// POST /api/cohost/generate
-// ============================================================
 
 router.post(
   "/generate",
   generateCoHostController
 );
 
-// ============================================================
-// GENERATE AI CO-HOST CUE TIMELINE
-// POST /api/cohost/timeline
-// ============================================================
 
 router.post(
   "/timeline",

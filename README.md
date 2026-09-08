@@ -35,7 +35,6 @@ ollama pull qwen2.5:3b
 ```
 
 ```bash
-# Start your Piper HTTP service on http://localhost:5001
 ```
 
 ```bash

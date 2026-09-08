@@ -31,9 +31,6 @@ export default function useChunkUploader(sessionId) {
 
   const processingRef = useRef(false);
 
-  // ==========================================================
-  // REFRESH QUEUE STATS
-  // ==========================================================
 
   const refreshStats = useCallback(async () => {
     if (!sessionId) {
@@ -63,9 +60,6 @@ export default function useChunkUploader(sessionId) {
     }
   }, [sessionId]);
 
-  // ==========================================================
-  // UPLOAD SINGLE CHUNK
-  // ==========================================================
 
   const uploadSingleChunk = useCallback(
     async (chunk) => {
@@ -144,14 +138,6 @@ export default function useChunkUploader(sessionId) {
     [sessionId, refreshStats]
   );
 
-  // ==========================================================
-  // UPLOAD PENDING CHUNKS
-  //
-  // NOTE:
-  // This is intentionally NOT wrapped in useCallback.
-  // React Compiler was reporting:
-  // preserve-manual-memoization
-  // ==========================================================
 
   async function uploadPendingChunks(
     includeFailed = false
@@ -211,9 +197,6 @@ export default function useChunkUploader(sessionId) {
     }
   }
 
-  // ==========================================================
-  // QUEUE NEW CHUNK
-  // ==========================================================
 
   const queueChunk = useCallback(
     async (chunkIndex, blob) => {
@@ -248,9 +231,6 @@ export default function useChunkUploader(sessionId) {
     [sessionId, refreshStats, uploadSingleChunk]
   );
 
-  // ==========================================================
-  // RETRY FAILED CHUNKS
-  // ==========================================================
 
   const retryFailedChunks = useCallback(
     async () => {
@@ -259,9 +239,6 @@ export default function useChunkUploader(sessionId) {
     [sessionId, refreshStats, uploadSingleChunk]
   );
 
-  // ==========================================================
-  // WAIT FOR UPLOADS
-  // ==========================================================
 
   const waitForUploads = useCallback(
     async () => {
@@ -274,9 +251,6 @@ export default function useChunkUploader(sessionId) {
     [refreshStats]
   );
 
-  // ==========================================================
-  // CLEAR QUEUE
-  // ==========================================================
 
   const clearQueue = useCallback(async () => {
     if (!sessionId) {
@@ -299,9 +273,6 @@ export default function useChunkUploader(sessionId) {
     setLastError(null);
   }, [sessionId]);
 
-  // ==========================================================
-  // RECOVER PENDING CHUNKS AFTER PAGE REFRESH
-  // ==========================================================
 
   useEffect(() => {
     if (!sessionId) {
@@ -317,9 +288,6 @@ export default function useChunkUploader(sessionId) {
     };
   }, [sessionId]);
 
-  // ==========================================================
-  // RETURN API
-  // ==========================================================
 
   return {
     queueChunk,

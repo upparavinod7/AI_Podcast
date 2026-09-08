@@ -1,9 +1,6 @@
 const STORAGE_PREFIX =
   "ai_podcast_session_timeline:";
 
-// ============================================================
-// CREATE EMPTY TIMELINE
-// ============================================================
 
 export function createEmptyTimeline(
   sessionId
@@ -22,17 +19,11 @@ export function createEmptyTimeline(
   };
 }
 
-// ============================================================
-// STORAGE KEY
-// ============================================================
 
 function getStorageKey(sessionId) {
   return `${STORAGE_PREFIX}${sessionId}`;
 }
 
-// ============================================================
-// LOAD TIMELINE
-// ============================================================
 
 export function loadSessionTimeline(
   sessionId
@@ -75,9 +66,6 @@ export function loadSessionTimeline(
   }
 }
 
-// ============================================================
-// SAVE TIMELINE
-// ============================================================
 
 export function saveSessionTimeline(
   timeline
@@ -113,9 +101,6 @@ export function saveSessionTimeline(
   }
 }
 
-// ============================================================
-// START RECORDING TIMELINE
-// ============================================================
 
 export function startRecordingTimeline(
   sessionId
@@ -143,9 +128,6 @@ export function startRecordingTimeline(
   return timeline;
 }
 
-// ============================================================
-// STOP RECORDING TIMELINE
-// ============================================================
 
 export function stopRecordingTimeline(
   sessionId
@@ -169,9 +151,6 @@ export function stopRecordingTimeline(
   return timeline;
 }
 
-// ============================================================
-// ADD AI CUE START EVENT
-// ============================================================
 
 export function addCueStartEvent(
   sessionId,
@@ -238,9 +217,6 @@ export function addCueStartEvent(
   return event;
 }
 
-// ============================================================
-// MARK CUE AS ACTUALLY PLAYING
-// ============================================================
 
 export function markCueStarted(
   sessionId,
@@ -285,9 +261,6 @@ export function markCueStarted(
   return event;
 }
 
-// ============================================================
-// MARK CUE AS FINISHED
-// ============================================================
 
 export function markCueEnded(
   sessionId,
@@ -344,9 +317,6 @@ export function markCueEnded(
   return event;
 }
 
-// ============================================================
-// MARK CUE AS FAILED
-// ============================================================
 
 export function markCueFailed(
   sessionId,
@@ -387,9 +357,6 @@ export function markCueFailed(
   return event;
 }
 
-// ============================================================
-// GET EVENTS
-// ============================================================
 
 export function getTimelineEvents(
   sessionId
@@ -406,9 +373,6 @@ export function getTimelineEvents(
   return [...timeline.events];
 }
 
-// ============================================================
-// CLEAR TIMELINE
-// ============================================================
 
 export function clearSessionTimeline(
   sessionId

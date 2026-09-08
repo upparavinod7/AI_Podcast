@@ -50,18 +50,12 @@ const upload = multer({
   },
 });
 
-// ============================================================
-// CREATE SESSION
-// ============================================================
 
 router.post(
   "/sessions",
   recordingController.createSession
 );
 
-// ============================================================
-// UPLOAD CHUNK
-// ============================================================
 
 router.post(
   "/sessions/:sessionId/chunks",
@@ -69,45 +63,30 @@ router.post(
   recordingController.uploadChunk
 );
 
-// ============================================================
-// GET SESSION STATUS
-// ============================================================
 
 router.get(
   "/sessions/:sessionId/status",
   recordingController.getSessionStatus
 );
 
-// ============================================================
-// FINALIZE RECORDING
-// ============================================================
 
 router.post(
   "/sessions/:sessionId/finalize",
   recordingController.finalizeSession
 );
 
-// ============================================================
-// MIX FINAL HOST RECORDING WITH AI CUE TIMELINE
-// ============================================================
 
 router.post(
   "/sessions/:sessionId/mix",
   audioMixController.mixSession
 );
 
-// ============================================================
-// GET / STREAM FINAL MIXED PODCAST
-// ============================================================
 
 router.get(
   "/sessions/:sessionId/mix/:format",
   audioMixController.getMixedAudio
 );
 
-// ============================================================
-// GET / STREAM FINAL RECORDING
-// ============================================================
 
 router.get(
   "/sessions/:sessionId/final",

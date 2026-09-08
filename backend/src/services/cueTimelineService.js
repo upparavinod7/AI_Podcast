@@ -2,9 +2,6 @@ const {
   generateCoHost,
 } = require("./coHostService");
 
-// ============================================================
-// BUILD AI CO-HOST CUE TIMELINE
-// ============================================================
 
 async function buildCueTimeline(
   topic,
