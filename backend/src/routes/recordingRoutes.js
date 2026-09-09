@@ -1,29 +1,20 @@
 const express = require("express");
 const multer = require("multer");
 
-const recordingController =
-  require("../controllers/recordingController");
+const recordingController = require("../controllers/recordingController");
 
-const audioMixController =
-  require("../controllers/audioMixController");
+const audioMixController = require("../controllers/audioMixController");
 
-const router =
-  express.Router();
+const router = express.Router();
 
 const upload = multer({
-  dest:
-    "outputs/tmp-recording-uploads",
+  dest: "outputs/tmp-recording-uploads",
 
   limits: {
-    fileSize:
-      10 * 1024 * 1024,
+    fileSize: 10 * 1024 * 1024,
   },
 
-  fileFilter: (
-    req,
-    file,
-    callback
-  ) => {
+  fileFilter: (req, file, callback) => {
     const allowedMimeTypes = [
       "audio/webm",
       "audio/ogg",
@@ -33,64 +24,40 @@ const upload = multer({
       "audio/x-wav",
     ];
 
-    if (
-      allowedMimeTypes.includes(
-        file.mimetype
-      )
-    ) {
+    if (allowedMimeTypes.includes(file.mimetype)) {
       callback(null, true);
       return;
     }
 
-    callback(
-      new Error(
-        `Unsupported audio type: ${file.mimetype}`
-      )
-    );
+    callback(new Error(`Unsupported audio type: ${file.mimetype}`));
   },
 });
 
-
-router.post(
-  "/sessions",
-  recordingController.createSession
-);
-
+router.post("/sessions", recordingController.createSession);
 
 router.post(
   "/sessions/:sessionId/chunks",
   upload.single("audio"),
-  recordingController.uploadChunk
+  recordingController.uploadChunk,
 );
 
-
-router.get(
-  "/sessions/:sessionId/status",
-  recordingController.getSessionStatus
-);
-
+router.get("/sessions/:sessionId/status", recordingController.getSessionStatus);
 
 router.post(
   "/sessions/:sessionId/finalize",
-  recordingController.finalizeSession
+  recordingController.finalizeSession,
 );
 
-
-router.post(
-  "/sessions/:sessionId/mix",
-  audioMixController.mixSession
-);
-
+router.post("/sessions/:sessionId/mix", audioMixController.mixSession);
 
 router.get(
   "/sessions/:sessionId/mix/:format",
-  audioMixController.getMixedAudio
+  audioMixController.getMixedAudio,
 );
-
 
 router.get(
   "/sessions/:sessionId/final",
-  recordingController.getFinalRecordingFile
+  recordingController.getFinalRecordingFile,
 );
 
 module.exports = router;

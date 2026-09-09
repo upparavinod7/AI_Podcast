@@ -1,61 +1,35 @@
-const {
-  buildCueTimeline,
-} = require("../services/cueTimelineService");
+const { buildCueTimeline } = require("../services/cueTimelineService");
 
-
-async function generateCueTimeline(
-  req,
-  res
-) {
+async function generateCueTimeline(req, res) {
   try {
-    const {
-      topic,
-      outline,
-    } = req.body;
+    const { topic, outline, voice = "alex" } = req.body;
 
-    if (
-      typeof topic !== "string" ||
-      topic.trim().length === 0
-    ) {
+    if (typeof topic !== "string" || topic.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        message:
-          "Topic is required",
+        message: "Topic is required",
       });
     }
 
-    if (
-      typeof outline !== "string" ||
-      outline.trim().length === 0
-    ) {
+    if (typeof outline !== "string" || outline.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        message:
-          "Outline is required",
+        message: "Outline is required",
       });
     }
 
-    const timeline =
-      await buildCueTimeline(
-        topic,
-        outline
-      );
+    const timeline = await buildCueTimeline(topic, outline, voice);
 
     return res.status(200).json({
       success: true,
       ...timeline,
     });
   } catch (error) {
-    console.error(
-      "Cue timeline generation error:",
-      error
-    );
+    console.error("Cue timeline generation error:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to generate cue timeline",
+      message: error.message || "Failed to generate cue timeline",
     });
   }
 }

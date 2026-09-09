@@ -1,34 +1,29 @@
-const {
-  generateTalkingPoints
-} = require("./llmService");
+const { generateTalkingPoints } = require("./llmService");
 
-const {
-  generateSpeech
-} = require("./ttsService");
+const { generateSpeech } = require("./ttsService");
 
-async function generateCoHost(topic, outline) {
-  const llmResult = await generateTalkingPoints(
-    topic,
-    outline
-  );
+async function generateCoHost(topic, outline, voice = "alex") {
+  const llmResult = await generateTalkingPoints(topic, outline);
 
   const talkingPoints = [];
 
   for (const point of llmResult.talkingPoints) {
-    const audio = await generateSpeech(point.question);
+    const pointVoice = point.voice || voice || "alex";
+    const audio = await generateSpeech(point.question, pointVoice);
 
     talkingPoints.push({
       order: point.order,
       question: point.question,
-      audio
+      voice: pointVoice,
+      audio,
     });
   }
 
   return {
-    talkingPoints
+    talkingPoints,
   };
 }
 
 module.exports = {
-  generateCoHost
+  generateCoHost,
 };

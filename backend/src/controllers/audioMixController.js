@@ -3,10 +3,30 @@ const {
   getMixedRecording,
 } = require("../services/audioMixService");
 
+const { updateSession } = require("../services/sessionService");
+
 async function mixSession(req, res) {
   try {
     const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: "Session ID is required",
+      });
+    }
+
     const result = await mixSessionAudio(sessionId, req.body);
+
+    // Update main session after successful mixing
+    updateSession(sessionId, {
+      status: "completed",
+      audio: {
+        finalized: true,
+        mixed: true,
+      },
+    });
+
     const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:5000/api";
 
     return res.status(200).json({
@@ -40,16 +60,24 @@ async function mixSession(req, res) {
 function getMixedAudio(req, res) {
   try {
     const { sessionId, format } = req.params;
+
     const recording = getMixedRecording(sessionId, format);
 
     res.setHeader("Content-Type", recording.contentType);
+
     res.setHeader("Content-Length", String(recording.size));
-    res.setHeader("Content-Disposition", `inline; filename="${recording.fileName}"`);
+
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${recording.fileName}"`,
+    );
+
     res.setHeader("Accept-Ranges", "bytes");
 
     return res.sendFile(recording.filePath);
   } catch (error) {
     console.error("Get mixed audio error:", error);
+
     const status = error.code === "MIXED_RECORDING_NOT_FOUND" ? 404 : 400;
 
     return res.status(status).json({

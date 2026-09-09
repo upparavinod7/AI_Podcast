@@ -1,26 +1,13 @@
 const express = require("express");
 
-const {
-  generateCoHostController,
-} = require("../controllers/coHostController");
+const { generateCoHostController } = require("../controllers/coHostController");
 
-const {
-  generateCueTimeline,
-} = require("../controllers/cueTimelineController");
+const { generateCueTimeline } = require("../controllers/cueTimelineController");
 
-const router =
-  express.Router();
+const router = express.Router();
 
+router.post("/generate", generateCoHostController);
 
-router.post(
-  "/generate",
-  generateCoHostController
-);
-
-
-router.post(
-  "/timeline",
-  generateCueTimeline
-);
+router.post("/timeline", generateCueTimeline);
 
 module.exports = router;

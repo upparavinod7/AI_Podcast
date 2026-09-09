@@ -1,14 +1,11 @@
 const express = require("express");
 
 const {
-  generateTalkingPointsController
+  generateTalkingPointsController,
 } = require("../controllers/llmController");
 
 const router = express.Router();
 
-router.post(
-  "/talking-points",
-  generateTalkingPointsController
-);
+router.post("/talking-points", generateTalkingPointsController);
 
 module.exports = router;

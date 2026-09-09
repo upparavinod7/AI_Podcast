@@ -3,23 +3,16 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFile } = require("child_process");
 
-const {
-  getFinalRecording,
-  isValidSessionId,
-} = require("./recordingService");
+const { getFinalRecording, isValidSessionId } = require("./recordingService");
 
-const TTS_ROOT = path.resolve(
-  __dirname,
-  "../../outputs/tts"
-);
+const TTS_ROOT = path.resolve(__dirname, "../../outputs/tts");
 
 const FINAL_PODCASTS_ROOT = path.resolve(
   __dirname,
-  "../../outputs/final-podcasts"
+  "../../outputs/final-podcasts",
 );
 
-const VALID_TTS_FILE_NAME =
-  /^tts-\d+\.wav$/i;
+const VALID_TTS_FILE_NAME = /^tts-\d+(-(alex|leo|maaya))?\.wav$/i;
 
 function createMixError(message, code) {
   const error = new Error(message);
@@ -46,16 +39,14 @@ function runCommand(command, args) {
           reject(
             createMixError(
               stderr || error.message || `${command} failed`,
-              command === "ffprobe"
-                ? "FFPROBE_FAILED"
-                : "FFMPEG_FAILED"
-            )
+              command === "ffprobe" ? "FFPROBE_FAILED" : "FFMPEG_FAILED",
+            ),
           );
           return;
         }
 
         resolve({ stdout, stderr });
-      }
+      },
     );
   });
 }
@@ -80,20 +71,24 @@ async function probeAudio(filePath) {
   } catch (error) {
     throw createMixError(
       "ffprobe returned invalid audio metadata",
-      "INVALID_AUDIO_METADATA"
+      "INVALID_AUDIO_METADATA",
     );
   }
 
   const audioStream = metadata.streams?.find(
-    (stream) => stream.codec_type === "audio"
+    (stream) => stream.codec_type === "audio",
   );
 
   const durationSeconds = Number(metadata.format?.duration || 0);
 
-  if (!audioStream || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+  if (
+    !audioStream ||
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0
+  ) {
     throw createMixError(
       "Audio file has no valid audio stream or duration",
-      "INVALID_AUDIO_FILE"
+      "INVALID_AUDIO_FILE",
     );
   }
 
@@ -121,14 +116,12 @@ function getTimelineEvents(payload) {
 
   throw createMixError(
     "A timeline.events, events, or cues array is required",
-    "INVALID_TIMELINE"
+    "INVALID_TIMELINE",
   );
 }
 
 async function validateCueEvents(events) {
-  const playableEvents = events.filter(
-    (event) => event?.status !== "failed"
-  );
+  const playableEvents = events.filter((event) => event?.status !== "failed");
 
   const cues = [];
 
@@ -136,21 +129,21 @@ async function validateCueEvents(events) {
     if (event?.status !== "completed") {
       throw createMixError(
         "Every AI cue must be completed before mixing",
-        "INCOMPLETE_CUE"
+        "INCOMPLETE_CUE",
       );
     }
 
     if (!VALID_TTS_FILE_NAME.test(event.audioFile || "")) {
       throw createMixError(
         "AI cue has an invalid audio file name",
-        "INVALID_CUE_AUDIO_FILE"
+        "INVALID_CUE_AUDIO_FILE",
       );
     }
 
     if (!Number.isFinite(event.startOffsetMs) || event.startOffsetMs < 0) {
       throw createMixError(
         "AI cue has an invalid start offset",
-        "INVALID_CUE_OFFSET"
+        "INVALID_CUE_OFFSET",
       );
     }
 
@@ -159,14 +152,14 @@ async function validateCueEvents(events) {
     if (!audioPath.startsWith(TTS_ROOT + path.sep)) {
       throw createMixError(
         "AI cue audio path is invalid",
-        "INVALID_CUE_AUDIO_FILE"
+        "INVALID_CUE_AUDIO_FILE",
       );
     }
 
     if (!fs.existsSync(audioPath) || !fs.statSync(audioPath).isFile()) {
       throw createMixError(
         `AI cue audio file does not exist: ${event.audioFile}`,
-        "CUE_AUDIO_NOT_FOUND"
+        "CUE_AUDIO_NOT_FOUND",
       );
     }
 
@@ -194,7 +187,7 @@ async function validateCueEvents(events) {
     if (cue.startOffsetMs < previousCueEndMs) {
       throw createMixError(
         "AI cue offsets overlap. Resolve the timeline before mixing.",
-        "OVERLAPPING_CUES"
+        "OVERLAPPING_CUES",
       );
     }
   }
@@ -212,13 +205,13 @@ function buildFilterGraph(cues) {
   cues.forEach((cue, index) => {
     const inputIndex = index + 1;
     filters.push(
-      `[${inputIndex}:a]aformat=sample_rates=48000:channel_layouts=mono,adelay=${cue.startOffsetMs}:all=1,volume=0.85[cue${index}]`
+      `[${inputIndex}:a]aformat=sample_rates=48000:channel_layouts=mono,adelay=${cue.startOffsetMs}:all=1,volume=0.85[cue${index}]`,
     );
     mixInputs.push(`[cue${index}]`);
   });
 
   filters.push(
-    `${mixInputs.join("")}amix=inputs=${mixInputs.length}:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=1[mixed]`
+    `${mixInputs.join("")}amix=inputs=${mixInputs.length}:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.95:level=1[mixed]`,
   );
 
   return filters.join(";");
@@ -232,8 +225,14 @@ function getMixedFilePaths(sessionId) {
   return {
     wavFileName: `final-podcast-${sessionId}.wav`,
     mp3FileName: `final-podcast-${sessionId}.mp3`,
-    wavFilePath: path.join(FINAL_PODCASTS_ROOT, `final-podcast-${sessionId}.wav`),
-    mp3FilePath: path.join(FINAL_PODCASTS_ROOT, `final-podcast-${sessionId}.mp3`),
+    wavFilePath: path.join(
+      FINAL_PODCASTS_ROOT,
+      `final-podcast-${sessionId}.wav`,
+    ),
+    mp3FilePath: path.join(
+      FINAL_PODCASTS_ROOT,
+      `final-podcast-${sessionId}.mp3`,
+    ),
   };
 }
 
@@ -248,11 +247,11 @@ async function mixSessionAudio(sessionId, payload) {
   const temporaryId = crypto.randomUUID();
   const temporaryWavPath = path.join(
     FINAL_PODCASTS_ROOT,
-    `.${temporaryId}.wav`
+    `.${temporaryId}.wav`,
   );
   const temporaryMp3Path = path.join(
     FINAL_PODCASTS_ROOT,
-    `.${temporaryId}.mp3`
+    `.${temporaryId}.mp3`,
   );
 
   try {
@@ -281,10 +280,7 @@ async function mixSessionAudio(sessionId, payload) {
     const wavMetadata = await probeAudio(temporaryWavPath);
 
     if (wavMetadata.codec !== "pcm_s16le" || wavMetadata.durationSeconds <= 0) {
-      throw createMixError(
-        "Mixed WAV failed validation",
-        "INVALID_MIX_OUTPUT"
-      );
+      throw createMixError("Mixed WAV failed validation", "INVALID_MIX_OUTPUT");
     }
 
     await runCommand("ffmpeg", [
@@ -301,10 +297,7 @@ async function mixSessionAudio(sessionId, payload) {
     const mp3Metadata = await probeAudio(temporaryMp3Path);
 
     if (mp3Metadata.codec !== "mp3" || mp3Metadata.durationSeconds <= 0) {
-      throw createMixError(
-        "Mixed MP3 failed validation",
-        "INVALID_MIX_OUTPUT"
-      );
+      throw createMixError("Mixed MP3 failed validation", "INVALID_MIX_OUTPUT");
     }
 
     fs.renameSync(temporaryWavPath, output.wavFilePath);
@@ -357,7 +350,7 @@ function getMixedRecording(sessionId, format) {
   if (!fs.existsSync(filePath) || fs.statSync(filePath).size === 0) {
     throw createMixError(
       "Mixed podcast not found. Mix the session first.",
-      "MIXED_RECORDING_NOT_FOUND"
+      "MIXED_RECORDING_NOT_FOUND",
     );
   }
 

@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   saveChunk,
@@ -31,7 +26,6 @@ export default function useChunkUploader(sessionId) {
 
   const processingRef = useRef(false);
 
-
   const refreshStats = useCallback(async () => {
     if (!sessionId) {
       setPendingCount(0);
@@ -43,23 +37,17 @@ export default function useChunkUploader(sessionId) {
       const chunks = await getSessionChunks(sessionId);
 
       const pending = chunks.filter(
-        (chunk) => chunk.status === "pending"
+        (chunk) => chunk.status === "pending",
       ).length;
 
-      const failed = chunks.filter(
-        (chunk) => chunk.status === "failed"
-      ).length;
+      const failed = chunks.filter((chunk) => chunk.status === "failed").length;
 
       setPendingCount(pending);
       setFailedCount(failed);
     } catch (error) {
-      console.error(
-        "Failed to refresh IndexedDB stats:",
-        error
-      );
+      console.error("Failed to refresh IndexedDB stats:", error);
     }
   }, [sessionId]);
-
 
   const uploadSingleChunk = useCallback(
     async (chunk) => {
@@ -73,25 +61,16 @@ export default function useChunkUploader(sessionId) {
             sessionId,
             chunk.chunkIndex,
             "pending",
-            attempts
+            attempts,
           );
 
           await refreshStats();
 
-          await uploadRecordingChunk(
-            sessionId,
-            chunk.chunkIndex,
-            chunk.blob
-          );
+          await uploadRecordingChunk(sessionId, chunk.chunkIndex, chunk.blob);
 
-          await deleteChunk(
-            sessionId,
-            chunk.chunkIndex
-          );
+          await deleteChunk(sessionId, chunk.chunkIndex);
 
-          setUploadedCount(
-            (previous) => previous + 1
-          );
+          setUploadedCount((previous) => previous + 1);
 
           await refreshStats();
 
@@ -102,7 +81,7 @@ export default function useChunkUploader(sessionId) {
         } catch (error) {
           console.error(
             `Chunk ${chunk.chunkIndex} upload attempt ${attempts} failed:`,
-            error
+            error,
           );
 
           if (attempts >= MAX_RETRIES) {
@@ -110,11 +89,11 @@ export default function useChunkUploader(sessionId) {
               sessionId,
               chunk.chunkIndex,
               "failed",
-              attempts
+              attempts,
             );
 
             setLastError(
-              `Chunk ${chunk.chunkIndex} failed after ${MAX_RETRIES} attempts.`
+              `Chunk ${chunk.chunkIndex} failed after ${MAX_RETRIES} attempts.`,
             );
 
             await refreshStats();
@@ -135,13 +114,10 @@ export default function useChunkUploader(sessionId) {
         chunkIndex: chunk.chunkIndex,
       };
     },
-    [sessionId, refreshStats]
+    [sessionId, refreshStats],
   );
 
-
-  async function uploadPendingChunks(
-    includeFailed = false
-  ) {
+  async function uploadPendingChunks(includeFailed = false) {
     if (!sessionId) {
       return;
     }
@@ -155,40 +131,25 @@ export default function useChunkUploader(sessionId) {
     setLastError(null);
 
     try {
-      let chunks = await getSessionChunks(
-        sessionId
-      );
+      let chunks = await getSessionChunks(sessionId);
 
       if (includeFailed) {
         chunks = chunks.filter(
-          (chunk) =>
-            chunk.status === "pending" ||
-            chunk.status === "failed"
+          (chunk) => chunk.status === "pending" || chunk.status === "failed",
         );
       } else {
-        chunks = chunks.filter(
-          (chunk) => chunk.status === "pending"
-        );
+        chunks = chunks.filter((chunk) => chunk.status === "pending");
       }
 
-      chunks.sort(
-        (a, b) =>
-          a.chunkIndex - b.chunkIndex
-      );
+      chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
       for (const chunk of chunks) {
         await uploadSingleChunk(chunk);
       }
     } catch (error) {
-      console.error(
-        "Pending chunk upload failed:",
-        error
-      );
+      console.error("Pending chunk upload failed:", error);
 
-      setLastError(
-        error.message ||
-          "Failed to upload pending chunks."
-      );
+      setLastError(error.message || "Failed to upload pending chunks.");
     } finally {
       processingRef.current = false;
       setIsUploading(false);
@@ -197,25 +158,18 @@ export default function useChunkUploader(sessionId) {
     }
   }
 
-
   const queueChunk = useCallback(
     async (chunkIndex, blob) => {
       if (!sessionId) {
-        throw new Error(
-          "Cannot queue chunk without sessionId"
-        );
+        throw new Error("Cannot queue chunk without sessionId");
       }
 
       if (!Number.isInteger(chunkIndex)) {
-        throw new Error(
-          "chunkIndex must be an integer"
-        );
+        throw new Error("chunkIndex must be an integer");
       }
 
       if (!(blob instanceof Blob)) {
-        throw new Error(
-          "Chunk must be a Blob"
-        );
+        throw new Error("Chunk must be a Blob");
       }
 
       await saveChunk({
@@ -228,51 +182,36 @@ export default function useChunkUploader(sessionId) {
 
       await uploadPendingChunks(false);
     },
-    [sessionId, refreshStats, uploadSingleChunk]
+    [sessionId, refreshStats, uploadSingleChunk],
   );
 
+  const retryFailedChunks = useCallback(async () => {
+    await uploadPendingChunks(true);
+  }, [sessionId, refreshStats, uploadSingleChunk]);
 
-  const retryFailedChunks = useCallback(
-    async () => {
-      await uploadPendingChunks(true);
-    },
-    [sessionId, refreshStats, uploadSingleChunk]
-  );
+  const waitForUploads = useCallback(async () => {
+    while (processingRef.current) {
+      await delay(100);
+    }
 
-
-  const waitForUploads = useCallback(
-    async () => {
-      while (processingRef.current) {
-        await delay(100);
-      }
-
-      await refreshStats();
-    },
-    [refreshStats]
-  );
-
+    await refreshStats();
+  }, [refreshStats]);
 
   const clearQueue = useCallback(async () => {
     if (!sessionId) {
       return;
     }
 
-    const chunks = await getSessionChunks(
-      sessionId
-    );
+    const chunks = await getSessionChunks(sessionId);
 
     for (const chunk of chunks) {
-      await deleteChunk(
-        sessionId,
-        chunk.chunkIndex
-      );
+      await deleteChunk(sessionId, chunk.chunkIndex);
     }
 
     setPendingCount(0);
     setFailedCount(0);
     setLastError(null);
   }, [sessionId]);
-
 
   useEffect(() => {
     if (!sessionId) {
@@ -287,7 +226,6 @@ export default function useChunkUploader(sessionId) {
       clearTimeout(timer);
     };
   }, [sessionId]);
-
 
   return {
     queueChunk,

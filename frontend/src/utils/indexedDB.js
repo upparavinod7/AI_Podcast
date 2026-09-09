@@ -22,10 +22,7 @@ function openDatabase() {
           unique: false,
         });
 
-        store.createIndex("sessionStatus", [
-          "sessionId",
-          "status",
-        ], {
+        store.createIndex("sessionStatus", ["sessionId", "status"], {
           unique: false,
         });
       }
@@ -42,31 +39,18 @@ function openDatabase() {
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error("Failed to open IndexedDB")
-      );
+      reject(request.error || new Error("Failed to open IndexedDB"));
     };
   });
 }
 
-
-export async function saveChunk({
-  sessionId,
-  chunkIndex,
-  blob,
-}) {
+export async function saveChunk({ sessionId, chunkIndex, blob }) {
   if (!sessionId) {
     throw new Error("sessionId is required");
   }
 
-  if (
-    !Number.isInteger(chunkIndex) ||
-    chunkIndex < 0
-  ) {
-    throw new Error(
-      "chunkIndex must be a non-negative integer"
-    );
+  if (!Number.isInteger(chunkIndex) || chunkIndex < 0) {
+    throw new Error("chunkIndex must be a non-negative integer");
   }
 
   if (!(blob instanceof Blob)) {
@@ -76,16 +60,11 @@ export async function saveChunk({
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readwrite"
-    );
+    const transaction = db.transaction(STORE_NAME, "readwrite");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
-    const id =
-      `${sessionId}:${chunkIndex}`;
+    const id = `${sessionId}:${chunkIndex}`;
 
     const now = Date.now();
 
@@ -107,10 +86,7 @@ export async function saveChunk({
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error("Failed to save chunk")
-      );
+      reject(request.error || new Error("Failed to save chunk"));
     };
 
     transaction.oncomplete = () => {
@@ -118,16 +94,12 @@ export async function saveChunk({
     };
 
     transaction.onerror = () => {
-      reject(
-        transaction.error ||
-          new Error("IndexedDB transaction failed")
-      );
+      reject(transaction.error || new Error("IndexedDB transaction failed"));
 
       db.close();
     };
   });
 }
-
 
 export async function getChunk(id) {
   if (!id) {
@@ -137,13 +109,9 @@ export async function getChunk(id) {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readonly"
-    );
+    const transaction = db.transaction(STORE_NAME, "readonly");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
     const request = store.get(id);
 
@@ -152,10 +120,7 @@ export async function getChunk(id) {
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error("Failed to get chunk")
-      );
+      reject(request.error || new Error("Failed to get chunk"));
     };
 
     transaction.oncomplete = () => {
@@ -164,10 +129,7 @@ export async function getChunk(id) {
   });
 }
 
-
-export async function getSessionChunks(
-  sessionId
-) {
+export async function getSessionChunks(sessionId) {
   if (!sessionId) {
     return [];
   }
@@ -175,39 +137,24 @@ export async function getSessionChunks(
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readonly"
-    );
+    const transaction = db.transaction(STORE_NAME, "readonly");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
-    const index =
-      store.index("sessionId");
+    const index = store.index("sessionId");
 
-    const request =
-      index.getAll(sessionId);
+    const request = index.getAll(sessionId);
 
     request.onsuccess = () => {
-      const chunks =
-        request.result || [];
+      const chunks = request.result || [];
 
-      chunks.sort(
-        (a, b) =>
-          a.chunkIndex - b.chunkIndex
-      );
+      chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
       resolve(chunks);
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Failed to read session chunks"
-          )
-      );
+      reject(request.error || new Error("Failed to read session chunks"));
     };
 
     transaction.oncomplete = () => {
@@ -216,96 +163,55 @@ export async function getSessionChunks(
   });
 }
 
-
-export async function getPendingChunks(
-  sessionId
-) {
-  const chunks =
-    await getSessionChunks(sessionId);
+export async function getPendingChunks(sessionId) {
+  const chunks = await getSessionChunks(sessionId);
 
   return chunks
-    .filter(
-      (chunk) =>
-        chunk.status === "pending" ||
-        chunk.status === "failed"
-    )
-    .sort(
-      (a, b) =>
-        a.chunkIndex - b.chunkIndex
-    );
+    .filter((chunk) => chunk.status === "pending" || chunk.status === "failed")
+    .sort((a, b) => a.chunkIndex - b.chunkIndex);
 }
 
-
-export async function getFailedChunks(
-  sessionId
-) {
-  const chunks =
-    await getSessionChunks(sessionId);
+export async function getFailedChunks(sessionId) {
+  const chunks = await getSessionChunks(sessionId);
 
   return chunks
-    .filter(
-      (chunk) =>
-        chunk.status === "failed"
-    )
-    .sort(
-      (a, b) =>
-        a.chunkIndex - b.chunkIndex
-    );
+    .filter((chunk) => chunk.status === "failed")
+    .sort((a, b) => a.chunkIndex - b.chunkIndex);
 }
-
 
 export async function updateChunkStatus(
   sessionId,
   chunkIndex,
   status,
-  attempts
+  attempts,
 ) {
   if (!sessionId) {
     throw new Error("sessionId is required");
   }
 
-  if (
-    !Number.isInteger(chunkIndex) ||
-    chunkIndex < 0
-  ) {
-    throw new Error(
-      "chunkIndex must be a non-negative integer"
-    );
+  if (!Number.isInteger(chunkIndex) || chunkIndex < 0) {
+    throw new Error("chunkIndex must be a non-negative integer");
   }
 
-  const validStatuses = [
-    "pending",
-    "uploading",
-    "uploaded",
-    "failed",
-  ];
+  const validStatuses = ["pending", "uploading", "uploaded", "failed"];
 
   if (!validStatuses.includes(status)) {
-    throw new Error(
-      `Invalid chunk status: ${status}`
-    );
+    throw new Error(`Invalid chunk status: ${status}`);
   }
 
-  const id =
-    `${sessionId}:${chunkIndex}`;
+  const id = `${sessionId}:${chunkIndex}`;
 
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readwrite"
-    );
+    const transaction = db.transaction(STORE_NAME, "readwrite");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
-    const getRequest =
-      store.get(id);
+    const getRequest = store.get(id);
 
     getRequest.onsuccess = () => {
-      const existing =
-        getRequest.result;
+      const existing = getRequest.result;
 
       if (!existing) {
         resolve(null);
@@ -314,41 +220,25 @@ export async function updateChunkStatus(
 
       existing.status = status;
 
-      if (
-        typeof attempts === "number" &&
-        Number.isFinite(attempts)
-      ) {
-        existing.attempts =
-          attempts;
+      if (typeof attempts === "number" && Number.isFinite(attempts)) {
+        existing.attempts = attempts;
       }
 
-      existing.updatedAt =
-        Date.now();
+      existing.updatedAt = Date.now();
 
-      const putRequest =
-        store.put(existing);
+      const putRequest = store.put(existing);
 
       putRequest.onsuccess = () => {
         resolve(existing);
       };
 
       putRequest.onerror = () => {
-        reject(
-          putRequest.error ||
-            new Error(
-              "Failed to update chunk"
-            )
-        );
+        reject(putRequest.error || new Error("Failed to update chunk"));
       };
     };
 
     getRequest.onerror = () => {
-      reject(
-        getRequest.error ||
-          new Error(
-            "Failed to find chunk for update"
-          )
-      );
+      reject(getRequest.error || new Error("Failed to find chunk for update"));
     };
 
     transaction.oncomplete = () => {
@@ -357,92 +247,46 @@ export async function updateChunkStatus(
   });
 }
 
-
-export async function markChunkUploading(
-  sessionId,
-  chunkIndex
-) {
-  const chunk = await getChunk(
-    `${sessionId}:${chunkIndex}`
-  );
+export async function markChunkUploading(sessionId, chunkIndex) {
+  const chunk = await getChunk(`${sessionId}:${chunkIndex}`);
 
   if (!chunk) {
     return null;
   }
 
-  return updateChunkStatus(
-    sessionId,
-    chunkIndex,
-    "uploading",
-    chunk.attempts
-  );
+  return updateChunkStatus(sessionId, chunkIndex, "uploading", chunk.attempts);
 }
 
-
-export async function markChunkUploaded(
-  sessionId,
-  chunkIndex,
-  attempts
-) {
-  return updateChunkStatus(
-    sessionId,
-    chunkIndex,
-    "uploaded",
-    attempts
-  );
+export async function markChunkUploaded(sessionId, chunkIndex, attempts) {
+  return updateChunkStatus(sessionId, chunkIndex, "uploaded", attempts);
 }
 
-
-export async function markChunkFailed(
-  sessionId,
-  chunkIndex,
-  attempts
-) {
-  return updateChunkStatus(
-    sessionId,
-    chunkIndex,
-    "failed",
-    attempts
-  );
+export async function markChunkFailed(sessionId, chunkIndex, attempts) {
+  return updateChunkStatus(sessionId, chunkIndex, "failed", attempts);
 }
 
-
-export async function deleteChunk(
-  sessionId,
-  chunkIndex
-) {
+export async function deleteChunk(sessionId, chunkIndex) {
   if (!sessionId) {
     throw new Error("sessionId is required");
   }
 
-  const id =
-    `${sessionId}:${chunkIndex}`;
+  const id = `${sessionId}:${chunkIndex}`;
 
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readwrite"
-    );
+    const transaction = db.transaction(STORE_NAME, "readwrite");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
-    const request =
-      store.delete(id);
+    const request = store.delete(id);
 
     request.onsuccess = () => {
       resolve(true);
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Failed to delete chunk"
-          )
-      );
+      reject(request.error || new Error("Failed to delete chunk"));
     };
 
     transaction.oncomplete = () => {
@@ -451,101 +295,58 @@ export async function deleteChunk(
   });
 }
 
-
-export async function deleteSessionChunks(
-  sessionId
-) {
-  const chunks =
-    await getSessionChunks(sessionId);
+export async function deleteSessionChunks(sessionId) {
+  const chunks = await getSessionChunks(sessionId);
 
   for (const chunk of chunks) {
-    await deleteChunk(
-      sessionId,
-      chunk.chunkIndex
-    );
+    await deleteChunk(sessionId, chunk.chunkIndex);
   }
 
   return true;
 }
 
+export async function deleteUploadedChunks(sessionId) {
+  const chunks = await getSessionChunks(sessionId);
 
-export async function deleteUploadedChunks(
-  sessionId
-) {
-  const chunks =
-    await getSessionChunks(sessionId);
-
-  const uploaded =
-    chunks.filter(
-      (chunk) =>
-        chunk.status === "uploaded"
-    );
+  const uploaded = chunks.filter((chunk) => chunk.status === "uploaded");
 
   for (const chunk of uploaded) {
-    await deleteChunk(
-      sessionId,
-      chunk.chunkIndex
-    );
+    await deleteChunk(sessionId, chunk.chunkIndex);
   }
 
   return true;
 }
-
 
 export async function getAllPendingChunks() {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readonly"
-    );
+    const transaction = db.transaction(STORE_NAME, "readonly");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
-    const request =
-      store.getAll();
+    const request = store.getAll();
 
     request.onsuccess = () => {
-      const allChunks =
-        request.result || [];
+      const allChunks = request.result || [];
 
-      const pendingChunks =
-        allChunks
-          .filter(
-            (chunk) =>
-              chunk.status ===
-                "pending" ||
-              chunk.status ===
-                "failed"
-          )
-          .sort((a, b) => {
-            if (
-              a.sessionId !==
-              b.sessionId
-            ) {
-              return a.sessionId.localeCompare(
-                b.sessionId
-              );
-            }
+      const pendingChunks = allChunks
+        .filter(
+          (chunk) => chunk.status === "pending" || chunk.status === "failed",
+        )
+        .sort((a, b) => {
+          if (a.sessionId !== b.sessionId) {
+            return a.sessionId.localeCompare(b.sessionId);
+          }
 
-            return (
-              a.chunkIndex -
-              b.chunkIndex
-            );
-          });
+          return a.chunkIndex - b.chunkIndex;
+        });
 
       resolve(pendingChunks);
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Failed to read pending chunks"
-          )
-      );
+      reject(request.error || new Error("Failed to read pending chunks"));
     };
 
     transaction.oncomplete = () => {
@@ -554,52 +355,32 @@ export async function getAllPendingChunks() {
   });
 }
 
-
 export async function getAllChunks() {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readonly"
-    );
+    const transaction = db.transaction(STORE_NAME, "readonly");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
-    const request =
-      store.getAll();
+    const request = store.getAll();
 
     request.onsuccess = () => {
-      const chunks =
-        request.result || [];
+      const chunks = request.result || [];
 
       chunks.sort((a, b) => {
-        if (
-          a.sessionId !==
-          b.sessionId
-        ) {
-          return a.sessionId.localeCompare(
-            b.sessionId
-          );
+        if (a.sessionId !== b.sessionId) {
+          return a.sessionId.localeCompare(b.sessionId);
         }
 
-        return (
-          a.chunkIndex -
-          b.chunkIndex
-        );
+        return a.chunkIndex - b.chunkIndex;
       });
 
       resolve(chunks);
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Failed to read chunks"
-          )
-      );
+      reject(request.error || new Error("Failed to read chunks"));
     };
 
     transaction.oncomplete = () => {
@@ -608,33 +389,22 @@ export async function getAllChunks() {
   });
 }
 
-
 export async function clearAllChunks() {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(
-      STORE_NAME,
-      "readwrite"
-    );
+    const transaction = db.transaction(STORE_NAME, "readwrite");
 
-    const store =
-      transaction.objectStore(STORE_NAME);
+    const store = transaction.objectStore(STORE_NAME);
 
-    const request =
-      store.clear();
+    const request = store.clear();
 
     request.onsuccess = () => {
       resolve(true);
     };
 
     request.onerror = () => {
-      reject(
-        request.error ||
-          new Error(
-            "Failed to clear recording chunks"
-          )
-      );
+      reject(request.error || new Error("Failed to clear recording chunks"));
     };
 
     transaction.oncomplete = () => {
@@ -643,12 +413,8 @@ export async function clearAllChunks() {
   });
 }
 
-
-export async function getSessionChunkSummary(
-  sessionId
-) {
-  const chunks =
-    await getSessionChunks(sessionId);
+export async function getSessionChunkSummary(sessionId) {
+  const chunks = await getSessionChunks(sessionId);
 
   const summary = {
     total: chunks.length,
@@ -660,22 +426,12 @@ export async function getSessionChunkSummary(
   };
 
   for (const chunk of chunks) {
-    if (
-      Object.prototype.hasOwnProperty.call(
-        summary,
-        chunk.status
-      )
-    ) {
+    if (Object.prototype.hasOwnProperty.call(summary, chunk.status)) {
       summary[chunk.status]++;
     }
 
-    if (
-      chunk.blob &&
-      typeof chunk.blob.size ===
-        "number"
-    ) {
-      summary.totalBytes +=
-        chunk.blob.size;
+    if (chunk.blob && typeof chunk.blob.size === "number") {
+      summary.totalBytes += chunk.blob.size;
     }
   }
 

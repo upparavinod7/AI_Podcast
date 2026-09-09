@@ -2,22 +2,19 @@ const express = require("express");
 
 const {
   generateSpeechController,
-  getAudioController
+  getVoicesController,
+  getAudioController,
 } = require("../controllers/ttsController");
 
-const router =
-  express.Router();
+const router = express.Router();
 
+// Get available AI voices
+router.get("/voices", getVoicesController);
 
-router.post(
-  "/speech",
-  generateSpeechController
-);
+// Generate speech
+router.post("/speech", generateSpeechController);
 
-
-router.get(
-  "/audio/:fileName",
-  getAudioController
-);
+// Stream generated audio
+router.get("/audio/:fileName", getAudioController);
 
 module.exports = router;

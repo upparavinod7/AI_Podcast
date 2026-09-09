@@ -5,8 +5,44 @@ const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
 
-const PIPER_URL =
-  process.env.PIPER_URL || "http://localhost:5001";
+/*
+ * AI Podcast Voices
+ *
+ * Each voice has its own Piper server/model.
+ *
+ * Alex  -> Ryan -> 5001
+ * Leo   -> Joe  -> 5002
+ * Maaya -> Amy  -> 5003
+ */
+
+const VOICES = {
+  alex: {
+    id: "alex",
+    name: "Alex",
+    gender: "male",
+    description: "Male · Ryan",
+    piperVoice: "en_US-ryan-medium",
+    piperUrl: process.env.PIPER_ALEX_URL || "http://localhost:5001",
+  },
+
+  leo: {
+    id: "leo",
+    name: "Leo",
+    gender: "male",
+    description: "Male · Joe",
+    piperVoice: "en_US-joe-medium",
+    piperUrl: process.env.PIPER_LEO_URL || "http://localhost:5002",
+  },
+
+  maaya: {
+    id: "maaya",
+    name: "Maaya",
+    gender: "female",
+    description: "Female · Amy",
+    piperVoice: "en_US-amy-medium",
+    piperUrl: process.env.PIPER_MAAYA_URL || "http://localhost:5003",
+  },
+};
 
 async function getAudioMetadata(filePath) {
   const { stdout } = await execFileAsync("ffprobe", [
@@ -16,7 +52,7 @@ async function getAudioMetadata(filePath) {
     "format=duration",
     "-of",
     "default=noprint_wrappers=1:nokey=1",
-    filePath
+    filePath,
   ]);
 
   const durationSeconds = Number(stdout.trim());
@@ -26,44 +62,106 @@ async function getAudioMetadata(filePath) {
   }
 
   return {
-    durationMs: Math.round(durationSeconds * 1000)
+    durationMs: Math.round(durationSeconds * 1000),
   };
 }
 
-async function generateSpeech(text) {
+function getAvailableVoices() {
+  return Object.values(VOICES).map((voice) => ({
+    id: voice.id,
+    name: voice.name,
+    gender: voice.gender,
+    description: voice.description,
+    piperVoice: voice.piperVoice,
+  }));
+}
+
+function getVoice(voiceId) {
+  if (!voiceId) {
+    return VOICES.alex;
+  }
+
+  const normalized = String(voiceId).trim().toLowerCase();
+  const key =
+    normalized === "ryan"
+      ? "alex"
+      : normalized === "joe"
+        ? "leo"
+        : normalized === "amy"
+          ? "maaya"
+          : normalized;
+
+  const voice = VOICES[key];
+
+  if (!voice) {
+    const error = new Error(`Unsupported voice: ${voiceId}`);
+
+    error.code = "INVALID_VOICE";
+
+    throw error;
+  }
+
+  return voice;
+}
+
+async function generateSpeech(text, voiceId = "alex") {
   if (!text || typeof text !== "string") {
     throw new Error("Text is required");
   }
 
-  const response = await fetch(`${PIPER_URL}/synthesize`, {
+  const trimmedText = text.trim();
+
+  if (!trimmedText) {
+    throw new Error("Text cannot be empty");
+  }
+
+  const voice = getVoice(voiceId);
+
+  console.log(
+    `[TTS] Generating ${voice.name} using ${voice.piperVoice} at ${voice.piperUrl}`,
+  );
+
+  /*
+   * Each Piper server already has its own model loaded.
+   *
+   * Therefore we only send the text here.
+   */
+  const response = await fetch(`${voice.piperUrl}/synthesize`, {
     method: "POST",
+
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ text })
+
+    body: JSON.stringify({
+      text: trimmedText,
+    }),
   });
 
   if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+
     throw new Error(
-      `Piper request failed: ${response.status}`
+      `Piper request failed for ${voice.name}: ${response.status}${
+        errorText ? ` - ${errorText}` : ""
+      }`,
     );
   }
 
-  const audioBuffer = Buffer.from(
-    await response.arrayBuffer()
-  );
+  const audioBuffer = Buffer.from(await response.arrayBuffer());
 
-  const outputDir = path.join(
-    process.cwd(),
-    "outputs",
-    "tts"
-  );
+  if (!audioBuffer.length) {
+    throw new Error(`Piper returned empty audio for ${voice.name}`);
+  }
+
+  const outputDir = path.join(process.cwd(), "outputs", "tts");
 
   await fs.mkdir(outputDir, {
-    recursive: true
+    recursive: true,
   });
 
-  const fileName = `tts-${Date.now()}.wav`;
+  const fileName = `tts-${Date.now()}-${voice.id}.wav`;
+
   const filePath = path.join(outputDir, fileName);
 
   await fs.writeFile(filePath, audioBuffer);
@@ -73,13 +171,28 @@ async function generateSpeech(text) {
   return {
     fileName,
     filePath,
+
     format: "wav",
+
     sampleRate: 22050,
+
     channels: 1,
-    durationMs: metadata.durationMs
+
+    durationMs: metadata.durationMs,
+
+    voice: {
+      id: voice.id,
+      name: voice.name,
+      gender: voice.gender,
+      description: voice.description,
+      piperVoice: voice.piperVoice,
+    },
   };
 }
 
 module.exports = {
-  generateSpeech
+  VOICES,
+  generateSpeech,
+  getAvailableVoices,
+  getVoice,
 };

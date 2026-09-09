@@ -1,7 +1,5 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5000/api";
-
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
 async function handleResponse(response) {
   let data;
@@ -9,71 +7,49 @@ async function handleResponse(response) {
   try {
     data = await response.json();
   } catch (error) {
-    throw new Error(
-      `Invalid server response (${response.status})`,
-      { cause: error }
-    );
+    throw new Error(`Invalid server response (${response.status})`, {
+      cause: error,
+    });
   }
 
-  if (
-    !response.ok ||
-    data.success === false
-  ) {
+  if (!response.ok || data.success === false) {
     throw new Error(
       data.message ||
         data.error ||
-        `Request failed with status ${response.status}`
+        `Request failed with status ${response.status}`,
     );
   }
 
   return data;
 }
 
-
 export async function createRecordingSession() {
-  const response = await fetch(
-    `${API_BASE_URL}/recording/sessions`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
+  const response = await fetch(`${API_BASE_URL}/recording/sessions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
 
   return handleResponse(response);
 }
 
-export async function uploadRecordingChunk(
-  sessionId,
-  chunkIndex,
-  blob
-) {
+export async function uploadRecordingChunk(sessionId, chunkIndex, blob) {
   if (!sessionId) {
-    throw new Error(
-      "sessionId is required"
-    );
+    throw new Error("sessionId is required");
   }
 
   if (!Number.isInteger(chunkIndex)) {
-    throw new Error(
-      "chunkIndex must be an integer"
-    );
+    throw new Error("chunkIndex must be an integer");
   }
 
   if (!(blob instanceof Blob)) {
-    throw new Error(
-      "audio blob is required"
-    );
+    throw new Error("audio blob is required");
   }
 
-  const formData =
-    new FormData();
+  const formData = new FormData();
 
-  formData.append(
-    "chunkIndex",
-    String(chunkIndex)
-  );
+  formData.append("chunkIndex", String(chunkIndex));
 
   const extension =
     blob.type === "audio/ogg"
@@ -85,9 +61,7 @@ export async function uploadRecordingChunk(
   formData.append(
     "audio",
     blob,
-    `chunk-${String(
-      chunkIndex
-    ).padStart(4, "0")}.${extension}`
+    `chunk-${String(chunkIndex).padStart(4, "0")}.${extension}`,
   );
 
   const response = await fetch(
@@ -95,23 +69,19 @@ export async function uploadRecordingChunk(
     {
       method: "POST",
       body: formData,
-    }
+    },
   );
 
   return handleResponse(response);
 }
 
-export async function getRecordingSessionStatus(
-  sessionId
-) {
+export async function getRecordingSessionStatus(sessionId) {
   if (!sessionId) {
-    throw new Error(
-      "sessionId is required"
-    );
+    throw new Error("sessionId is required");
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/recording/sessions/${sessionId}/status`
+    `${API_BASE_URL}/recording/sessions/${sessionId}/status`,
   );
 
   return handleResponse(response);
@@ -124,7 +94,7 @@ export async function finalizeRecordingSession(sessionId) {
 
   const response = await fetch(
     `${API_BASE_URL}/recording/sessions/${sessionId}/finalize`,
-    { method: "POST" }
+    { method: "POST" },
   );
 
   return handleResponse(response);
@@ -145,7 +115,7 @@ export async function mixPodcastSession(sessionId, events) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ timeline: { events } }),
-    }
+    },
   );
 
   return handleResponse(response);
@@ -157,49 +127,31 @@ export function getFinalRecordingUrl(sessionId) {
     : "";
 }
 
-
-export async function generateCoHostTimeline(
-  topic,
-  outline
-) {
-  if (
-    !topic ||
-    typeof topic !== "string"
-  ) {
-    throw new Error(
-      "Topic is required"
-    );
+export async function generateCoHostTimeline(topic, outline, voice = "alex") {
+  if (!topic || typeof topic !== "string") {
+    throw new Error("Topic is required");
   }
 
-  if (
-    !outline ||
-    typeof outline !== "string"
-  ) {
-    throw new Error(
-      "Outline is required"
-    );
+  if (!outline || typeof outline !== "string") {
+    throw new Error("Outline is required");
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}/cohost/timeline`,
-    {
-      method: "POST",
+  const response = await fetch(`${API_BASE_URL}/cohost/timeline`, {
+    method: "POST",
 
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
+    headers: {
+      "Content-Type": "application/json",
+    },
 
-      body: JSON.stringify({
-        topic: topic.trim(),
-        outline: outline.trim(),
-      }),
-    }
-  );
+    body: JSON.stringify({
+      topic: topic.trim(),
+      outline: outline.trim(),
+      voice,
+    }),
+  });
 
   return handleResponse(response);
 }
-
 
 export function getApiBaseUrl() {
   return API_BASE_URL;
