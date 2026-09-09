@@ -70,6 +70,9 @@ ${outline}
       headers: {
         "Content-Type": "application/json",
       },
+      signal: AbortSignal.timeout(
+        Number(process.env.OLLAMA_TIMEOUT_MS) || 12000,
+      ),
       body: JSON.stringify({
         model: OLLAMA_MODEL,
         messages: [
@@ -111,7 +114,7 @@ ${outline}
     return parsed;
   } catch (error) {
     console.warn(
-      `[LLM] Ollama unavailable or failed (${error.message}). Using deterministic fallback talking points for topic: "${topic}".`,
+      `[LLM] Ollama unavailable, using deterministic fallback (${error.message}) for topic: "${topic}".`,
     );
 
     const fallback = getFallbackTalkingPoints(topic, outline);
